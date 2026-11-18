@@ -32,15 +32,13 @@ export async function GET(req: NextRequest) {
 
   const wb = new ExcelJS.Workbook();
   wb.creator = 'Plasgain Weekly Follow-Up';
-  const ws = wb.addWorksheet('Orders', { views: [{ state: 'frozen', ySplit: 4, showGridLines: true }] });
+  const ws = wb.addWorksheet('Orders', { views: [{ state: 'frozen', ySplit: 3, showGridLines: true }] });
   ws.columns = [{ width: 22 }, { width: 60 }, { width: 22 }, { width: 22 }, { width: 50 }];
 
   ws.getCell('A1').value = customer;
   ws.getCell('A1').font = { bold: true, size: 14 };
-  ws.getCell('A2').value = `Open and in-progress orders as at ${showDate(todayMelbourne())}`;
-  ws.getCell('A2').font = { color: { argb: 'FF667085' } };
 
-  const header = ws.getRow(4);
+  const header = ws.getRow(3);
   header.values = ['Purchase Order', 'Description', 'Current Required Date', 'Revised Required Date', 'Notes'];
   header.font = { bold: true };
   header.eachCell((c) => {
@@ -50,14 +48,14 @@ export async function GET(req: NextRequest) {
   });
 
   orders.forEach((r, i) => {
-    const row = ws.getRow(5 + i);
+    const row = ws.getRow(4 + i);
     row.values = [r.po, r.description, r.required ? excelDate(r.required) : 'Not set', null, null];
     row.getCell(2).alignment = { wrapText: true, vertical: 'top' };
     for (const c of [1, 3, 4, 5]) row.getCell(c).alignment = { vertical: 'top', wrapText: c === 5 };
     row.getCell(3).numFmt = 'dd/mm/yyyy';
     row.getCell(4).numFmt = 'dd/mm/yyyy';
   });
-  if (orders.length === 0) ws.getCell('A5').value = 'No open or in-progress orders for this customer.';
+  if (orders.length === 0) ws.getCell('A4').value = 'No open or in-progress orders for this customer.';
 
   const buf = await wb.xlsx.writeBuffer();
   const safe = customer.replace(/[^\w\s.&-]/g, '').trim().slice(0, 60) || 'customer';
