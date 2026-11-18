@@ -18,14 +18,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <div className="shell">
           <aside className="sidebar">
             <div className="brand">
-              <svg className="brand-mark" viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M4 4h10l6 6v10H4z" fill="none" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" />
-                <path d="M14 4v6h6" fill="none" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" />
-              </svg>
-              <div>
-                <div className="brand-name">Plasgain</div>
-                <div className="brand-app">Weekly Follow-Up</div>
-              </div>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img className="brand-logo" src="/plasgain-logo.png" alt="Plasgain" />
+              <div className="brand-app">Weekly Follow-Up</div>
             </div>
             <nav className="side-nav">
               <a className="side-link active" href="/">
