@@ -190,6 +190,15 @@ export default function FollowUpView({ data, today }: { data: FollowUpData; toda
         onPick={setSelected}
       />
 
+      <div className="split">
+        <CustomerList
+          rows={data.rows.filter((r) => r.kind === tab && (!salesperson || r.salesperson === salesperson))}
+          today={today}
+          selected={customer}
+          onPick={setCustomer}
+          noun={tab === 'quote' ? 'quotes' : 'orders'}
+        />
+        <div className="split-main">
       {tab === 'open' && (
         <section>
           <h2>
@@ -317,9 +326,67 @@ export default function FollowUpView({ data, today }: { data: FollowUpData; toda
           </div>
         </section>
       )}
+        </div>
+      </div>
 
       {selected && <Details row={selected} today={today} onClose={() => setSelected(null)} />}
     </main>
+  );
+}
+
+function needsAttention(r: FollowUpRow, today: string): boolean {
+  if (r.kind === 'open') return !!openOrderFlag(r.required, today);
+  if (r.kind === 'inprogress') return !!inProgressColour(r.required, today);
+  return quoteFlag(r.entered, today) === 'follow-up';
+}
+
+function CustomerList({
+  rows,
+  today,
+  selected,
+  onPick,
+  noun,
+}: {
+  rows: FollowUpRow[];
+  today: string;
+  selected: string;
+  onPick: (c: string) => void;
+  noun: string;
+}) {
+  const counts = new Map<string, { total: number; attention: number }>();
+  for (const r of rows) {
+    if (!r.customer) continue;
+    const c = counts.get(r.customer) ?? { total: 0, attention: 0 };
+    c.total += 1;
+    if (needsAttention(r, today)) c.attention += 1;
+    counts.set(r.customer, c);
+  }
+  const list = [...counts.entries()].sort((a, b) => b[1].total - a[1].total || a[0].localeCompare(b[0]));
+  return (
+    <aside className="cust-list">
+      <div className="cust-head">
+        <span>Customers</span>
+        <span className="muted small">{list.length}</span>
+      </div>
+      <button className={`cust-item${selected ? '' : ' active'}`} onClick={() => onPick('')}>
+        <span className="cust-name">All customers</span>
+        <span className="count">{rows.length}</span>
+      </button>
+      <div className="cust-scroll">
+        {list.map(([name, c]) => (
+          <button
+            key={name}
+            className={`cust-item${selected === name ? ' active' : ''}`}
+            onClick={() => onPick(selected === name ? '' : name)}
+            title={`${name}: ${c.total} outstanding ${noun}${c.attention ? `, ${c.attention} need attention` : ''}`}
+          >
+            <span className="cust-name">{name}</span>
+            {c.attention > 0 && <span className="dot">{c.attention}</span>}
+            <span className="count">{c.total}</span>
+          </button>
+        ))}
+      </div>
+    </aside>
   );
 }
 
