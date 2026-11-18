@@ -80,3 +80,8 @@ export function showDate(iso: string | null): string {
   const [y, m, d] = iso.split('-');
   return `${d}/${m}/${y}`;
 }
+
+/** Adds whole days to a yyyy-mm-dd date. */
+export function addDays(iso: string, days: number): string {
+  return new Date(toUtc(iso) + days * 86_400_000).toISOString().slice(0, 10);
+}
