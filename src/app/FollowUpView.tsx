@@ -152,6 +152,14 @@ export default function FollowUpView({ data, today }: { data: FollowUpData; toda
           <input type="checkbox" checked={flaggedOnly} onChange={(e) => setFlaggedOnly(e.target.checked)} />
           Only show ones that need attention
         </label>
+        <a
+          className={customer ? 'button-link' : 'button-link disabled'}
+          href={customer ? `/api/export?customer=${encodeURIComponent(customer)}` : undefined}
+          aria-disabled={!customer}
+          title={customer ? 'Download this customer\'s open and in-progress orders' : 'Choose a customer first'}
+        >
+          Download spreadsheet
+        </a>
         {(customer || salesperson || flaggedOnly) && (
           <button
             className="secondary"
