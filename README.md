@@ -23,8 +23,8 @@ Everything is in Ostendo's `JOBHEADER` table (about 9,200 rows, 70 MB in total, 
 | What | Column |
 |---|---|
 | List | `ORDERSTATUS` = `Open`, `InProgress` or `Quote` (superseded quote revisions, `QUOTEREVISIONSTATUS = Non Current`, are left out) |
-| Entered date / quote date | `ORDERDATE` (d/m/yyyy) |
-| Required date | `REQUIREDDATE` (1900 and 2099 are placeholders for "not set") |
+| Entered date / quote date | `ORDERDATE` (m/d/yyyy, US order) |
+| Required date | `REQUIREDDATE` (m/d/yyyy; 1900 and 2099 are placeholders for "not set") |
 | Customer | `CUSTOMER` (100% match `CUSTOMERMASTER.CUSTOMER`) |
 | Value ex GST | `ORIGINALORDERAMOUNT` |
 | Salesperson | `SALESPERSON` |

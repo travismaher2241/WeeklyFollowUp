@@ -13,16 +13,21 @@ export function todayMelbourne(now = new Date()): string {
 }
 
 /**
- * Ostendo dates look like "18/11/2026" or "18/11/2026 9:41:07 AM" (d/m/yyyy).
- * Returns yyyy-mm-dd, or null if blank or a placeholder (Ostendo uses 1900 and 2099 for "not set").
+ * Ostendo's JOBHEADER dates are US order, month first: "7/21/2026" or "7/21/2026 9:41:07 AM" (m/d/yyyy).
+ * Confirmed 18/11/2026: the structure check found "months" of 20 to 31 when read as d/m, and Trav saw them back to front.
+ * If the first number is over 12 it can only be a day, so that case is read as d/m.
+ * Returns yyyy-mm-dd, or null if blank, invalid or a placeholder (Ostendo uses 1900 and 2099 for "not set").
  */
 export function parseOstendoDate(v: string): string | null {
   const m = v.trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
   if (!m) return null;
-  const [, d, mo, y] = m;
-  const year = Number(y);
+  let month = Number(m[1]);
+  let day = Number(m[2]);
+  const year = Number(m[3]);
+  if (month > 12 && day <= 12) [month, day] = [day, month];
+  if (month < 1 || month > 12 || day < 1 || day > 31) return null;
   if (year < 1990 || year > 2090) return null;
-  return `${y}-${mo.padStart(2, '0')}-${d.padStart(2, '0')}`;
+  return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 }
 
 function toUtc(iso: string): number {
