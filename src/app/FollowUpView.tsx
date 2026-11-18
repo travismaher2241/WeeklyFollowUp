@@ -169,7 +169,7 @@ export default function FollowUpView({ data, today }: { data: FollowUpData; toda
       <Calendar
         rows={tabRows}
         today={today}
-        title={tab === 'quote' ? 'Quote follow-ups, next 2 weeks' : 'Due out, next 2 weeks'}
+        title={tab === 'quote' ? 'Quote follow-ups, this week and next' : 'Due out, this week and next'}
         note={tab === 'quote' ? 'By the follow-up date set on the quote in Ostendo.' : 'By required date.'}
         onPick={setSelected}
       />
@@ -316,11 +316,20 @@ function Calendar({
   note: string;
   onPick: (r: FollowUpRow) => void;
 }) {
-  const days = Array.from({ length: 14 }, (_, i) => addDays(today, i));
-  const byDay = new Map<string, FollowUpRow[]>();
+  // Two working weeks, Monday to Friday, starting on this week's Monday.
+  const dow = new Date(today + 'T00:00:00Z').getUTCDay(); // 0 = Sun
+  const monday = addDays(today, dow === 0 ? -6 : 1 - dow);
+  const days = [0, 1, 2, 3, 4, 7, 8, 9, 10, 11].map((i) => addDays(monday, i));
+  const lastDay = addDays(monday, 13);
+  // Anything due on a weekend is shown on the Friday before it.
+  const byDay = new Map<string, { r: FollowUpRow; weekend?: string }[]>();
   for (const r of rows) {
     const d = calendarDate(r);
-    if (d && d >= days[0] && d <= days[13]) byDay.set(d, [...(byDay.get(d) ?? []), r]);
+    if (!d || d < monday || d > lastDay) continue;
+    const wd = new Date(d + 'T00:00:00Z').getUTCDay();
+    const slot = wd === 6 ? addDays(d, -1) : wd === 0 ? addDays(d, -2) : d;
+    const weekend = wd === 6 ? 'Sat' : wd === 0 ? 'Sun' : undefined;
+    byDay.set(slot, [...(byDay.get(slot) ?? []), { r, weekend }]);
   }
   const fmt = (iso: string) => {
     const [y, m, d] = iso.split('-').map(Number);
@@ -328,7 +337,6 @@ function Calendar({
     return {
       weekday: dt.toLocaleDateString('en-AU', { weekday: 'short', timeZone: 'UTC' }),
       day: dt.toLocaleDateString('en-AU', { day: 'numeric', month: 'short', timeZone: 'UTC' }),
-      weekend: dt.getUTCDay() === 0 || dt.getUTCDay() === 6,
     };
   };
   return (
@@ -341,14 +349,15 @@ function Calendar({
           const f = fmt(d);
           const items = byDay.get(d) ?? [];
           return (
-            <div key={d} className={`cal-day${d === today ? ' today' : ''}${f.weekend ? ' weekend' : ''}`}>
+            <div key={d} className={`cal-day${d === today ? ' today' : ''}${d < today ? ' past' : ''}`}>
               <div className="cal-head">
                 <span>{d === today ? 'Today' : f.weekday}</span>
                 <span className="muted">{f.day}</span>
               </div>
-              {items.map((r) => (
+              {items.map(({ r, weekend }) => (
                 <button key={r.id} className="cal-item" onClick={() => onPick(r)} title={`${r.customer}: ${r.description}`}>
                   {r.number}
+                  {weekend && <span className="muted"> ({weekend})</span>}
                 </button>
               ))}
             </div>
