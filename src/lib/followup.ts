@@ -23,6 +23,8 @@ export interface FollowUpRow {
   valueExGst: number | null;
   /** Quotes only: QUOTEFOLLOWUPREQDATE, the follow-up date set in Ostendo. Used for the quotes calendar. */
   followUpDate: string | null;
+  /** Quotes only: QUOTEEXPIRY. */
+  expiry: string | null;
   /** Extra fields shown when you click an order. Label -> value, blanks left out. */
   details: [string, string][];
 }
@@ -99,6 +101,7 @@ function buildDetails(r: OstendoRow, kind: ListKind): [string, string][] {
 function mapRow(r: OstendoRow, kind: ListKind): FollowUpRow {
   return {
     followUpDate: kind === 'quote' ? parseOstendoDate(cell(r.QUOTEFOLLOWUPREQDATE)) : null,
+    expiry: kind === 'quote' ? parseOstendoDate(cell(r.QUOTEEXPIRY)) : null,
     details: buildDetails(r, kind),
     id: cell(r.SYSUNIQUEID) || cell(r.ORDERNUMBER),
     kind,
@@ -130,4 +133,4 @@ async function load(): Promise<FollowUpData> {
 }
 
 /** Cached for 1 hour so Ostendo is read at most a few times an hour, whoever opens the page. */
-export const getFollowUpData = unstable_cache(load, ['jobheader-followup-v4'], { revalidate: 3600, tags: ['followup'] });
+export const getFollowUpData = unstable_cache(load, ['jobheader-followup-v5'], { revalidate: 3600, tags: ['followup'] });

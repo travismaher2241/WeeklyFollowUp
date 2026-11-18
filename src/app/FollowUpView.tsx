@@ -154,13 +154,19 @@ export default function FollowUpView({ data, today }: { data: FollowUpData; toda
       <div className="side-section side-bottom">
         <a
           className={customer ? 'button-link' : 'button-link disabled'}
-          href={customer ? `/api/export?customer=${encodeURIComponent(customer)}` : undefined}
+          href={customer ? `/api/export?customer=${encodeURIComponent(customer)}${tab === 'quote' ? '&type=quotes' : ''}` : undefined}
           aria-disabled={!customer}
-          title={customer ? "Download this customer's open and in-progress orders" : 'Choose a customer first'}
+          title={
+            customer
+              ? tab === 'quote'
+                ? "Download this customer's outstanding quotes"
+                : "Download this customer's open and in-progress orders"
+              : 'Choose a customer first'
+          }
         >
-          Download spreadsheet
+          {tab === 'quote' ? 'Download quotes spreadsheet' : 'Download orders spreadsheet'}
         </a>
-        {!customer && <div className="side-hint">Choose a customer to download their orders.</div>}
+        {!customer && <div className="side-hint">Choose a customer to download their {tab === 'quote' ? 'quotes' : 'orders'}.</div>}
       </div>
     </div>
   );

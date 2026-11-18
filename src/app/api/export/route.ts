@@ -26,20 +26,29 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: msg }, { status: 502 });
   }
 
-  const orders = data.rows
-    .filter((r) => (r.kind === 'open' || r.kind === 'inprogress') && r.customer === customer)
-    .sort((a, b) => (a.required ?? '9999').localeCompare(b.required ?? '9999'));
+  const quotes = req.nextUrl.searchParams.get('type') === 'quotes';
+  const rows = data.rows
+    .filter((r) => (quotes ? r.kind === 'quote' : r.kind === 'open' || r.kind === 'inprogress') && r.customer === customer)
+    .sort((a, b) =>
+      quotes
+        ? (a.entered ?? '9999').localeCompare(b.entered ?? '9999')
+        : (a.required ?? '9999').localeCompare(b.required ?? '9999'),
+    );
 
   const wb = new ExcelJS.Workbook();
   wb.creator = 'Plasgain Weekly Follow-Up';
-  const ws = wb.addWorksheet('Orders', { views: [{ state: 'frozen', ySplit: 3, showGridLines: true }] });
-  ws.columns = [{ width: 22 }, { width: 60 }, { width: 22 }, { width: 22 }, { width: 50 }];
+  const ws = wb.addWorksheet(quotes ? 'Quotes' : 'Orders', { views: [{ state: 'frozen', ySplit: 3, showGridLines: true }] });
+  ws.columns = quotes
+    ? [{ width: 16 }, { width: 60 }, { width: 14 }, { width: 14 }, { width: 16 }, { width: 50 }]
+    : [{ width: 22 }, { width: 60 }, { width: 22 }, { width: 22 }, { width: 50 }];
 
   ws.getCell('A1').value = customer;
   ws.getCell('A1').font = { bold: true, size: 14 };
 
   const header = ws.getRow(3);
-  header.values = ['Purchase Order', 'Description', 'Current Required Date', 'Revised Required Date', 'Notes'];
+  header.values = quotes
+    ? ['Quote Number', 'Description', 'Quote Date', 'Expiry Date', 'Value ex GST', 'Notes']
+    : ['Purchase Order', 'Description', 'Current Required Date', 'Revised Required Date', 'Notes'];
   header.font = { bold: true };
   header.eachCell((c) => {
     c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE6F6ED' } };
@@ -47,19 +56,35 @@ export async function GET(req: NextRequest) {
     c.alignment = { vertical: 'middle' };
   });
 
-  orders.forEach((r, i) => {
+  rows.forEach((r, i) => {
     const row = ws.getRow(4 + i);
-    row.values = [r.po, r.description, r.required ? excelDate(r.required) : 'Not set', null, null];
-    row.getCell(2).alignment = { wrapText: true, vertical: 'top' };
-    for (const c of [1, 3, 4, 5]) row.getCell(c).alignment = { vertical: 'top', wrapText: c === 5 };
-    row.getCell(3).numFmt = 'dd/mm/yyyy';
-    row.getCell(4).numFmt = 'dd/mm/yyyy';
+    if (quotes) {
+      row.values = [
+        r.number,
+        r.description,
+        r.entered ? excelDate(r.entered) : null,
+        r.expiry ? excelDate(r.expiry) : null,
+        r.valueExGst,
+        null,
+      ];
+      row.getCell(3).numFmt = 'dd/mm/yyyy';
+      row.getCell(4).numFmt = 'dd/mm/yyyy';
+      row.getCell(5).numFmt = '$#,##0.00';
+    } else {
+      row.values = [r.po, r.description, r.required ? excelDate(r.required) : 'Not set', null, null];
+      row.getCell(3).numFmt = 'dd/mm/yyyy';
+      row.getCell(4).numFmt = 'dd/mm/yyyy';
+    }
+    row.eachCell({ includeEmpty: true }, (c, col) => {
+      c.alignment = { vertical: 'top', wrapText: col === 2 || col === (quotes ? 6 : 5) };
+    });
   });
-  if (orders.length === 0) ws.getCell('A4').value = 'No open or in-progress orders for this customer.';
+  if (rows.length === 0)
+    ws.getCell('A4').value = quotes ? 'No outstanding quotes for this customer.' : 'No open or in-progress orders for this customer.';
 
   const buf = await wb.xlsx.writeBuffer();
   const safe = customer.replace(/[^\w\s.&-]/g, '').trim().slice(0, 60) || 'customer';
-  const filename = `${safe} - orders - ${showDate(todayMelbourne()).replace(/\//g, '-')}.xlsx`;
+  const filename = `${safe} - ${quotes ? 'quotes' : 'orders'} - ${showDate(todayMelbourne()).replace(/\//g, '-')}.xlsx`;
   return new NextResponse(buf as ArrayBuffer, {
     headers: {
       'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
