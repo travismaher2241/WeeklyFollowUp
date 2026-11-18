@@ -27,6 +27,7 @@ export default function FollowUpView({ data, today }: { data: FollowUpData; toda
   const [salesperson, setSalesperson] = useState('');
   const [flaggedOnly, setFlaggedOnly] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [tab, setTab] = useState<'open' | 'inprogress' | 'quote'>('open');
 
   const customers = useMemo(() => [...new Set(data.rows.map((r) => r.customer).filter(Boolean))].sort((a, b) => a.localeCompare(b)), [data]);
   const reps = useMemo(() => [...new Set(data.rows.map((r) => r.salesperson).filter(Boolean))].sort(), [data]);
@@ -116,6 +117,28 @@ export default function FollowUpView({ data, today }: { data: FollowUpData; toda
         )}
       </div>
 
+      <nav className="tabs" role="tablist">
+        {(
+          [
+            ['open', 'Open orders', open.length, open.filter((x) => x.flag).length],
+            ['inprogress', 'In-progress orders', inProgress.length, inProgress.filter((x) => x.colour).length],
+            ['quote', 'Quotes', quotes.length, quotes.filter((x) => x.flag === 'follow-up').length],
+          ] as const
+        ).map(([key, label, count, attention]) => (
+          <button
+            key={key}
+            role="tab"
+            aria-selected={tab === key}
+            className={tab === key ? 'tab active' : 'tab'}
+            onClick={() => setTab(key)}
+          >
+            {label} <span className="count">{count}</span>
+            {attention > 0 && <span className="dot" title="Need attention">{attention}</span>}
+          </button>
+        ))}
+      </nav>
+
+{tab === 'open' && (
       <section>
         <h2>
           Open orders <span className="count">{open.length}</span>{' '}
@@ -151,7 +174,9 @@ export default function FollowUpView({ data, today }: { data: FollowUpData; toda
           </table>
         </div>
       </section>
+      )}
 
+{tab === 'inprogress' && (
       <section>
         <h2>
           In-progress orders <span className="count">{inProgress.length}</span>{' '}
@@ -191,7 +216,9 @@ export default function FollowUpView({ data, today }: { data: FollowUpData; toda
           </table>
         </div>
       </section>
+      )}
 
+{tab === 'quote' && (
       <section>
         <h2>
           Outstanding quotes <span className="count">{quotes.length}</span>{' '}
@@ -233,6 +260,7 @@ export default function FollowUpView({ data, today }: { data: FollowUpData; toda
           </table>
         </div>
       </section>
+      )}
     </main>
   );
 }
