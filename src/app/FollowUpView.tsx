@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import type { FollowUpData, FollowUpRow, ListKind } from '@/lib/followup';
 import {
   addDays,
@@ -94,6 +95,76 @@ export default function FollowUpView({ data, today }: { data: FollowUpData; toda
     timeStyle: 'short',
   });
 
+  // The filters, customer list and download live in the layout's sidebar.
+  const [slot, setSlot] = useState<HTMLElement | null>(null);
+  useEffect(() => setSlot(document.getElementById('sidebar-slot')), []);
+
+  const sidebar = (
+    <div className="side-panel">
+      <div className="side-section">
+        <div className="side-label">Filters</div>
+        <label className="side-field">
+          Customer
+          <select value={customer} onChange={(e) => setCustomer(e.target.value)}>
+            <option value="">All customers</option>
+            {customers.map((c) => (
+              <option key={c} value={c}>
+                {c}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="side-field">
+          Salesperson
+          <select value={salesperson} onChange={(e) => setSalesperson(e.target.value)}>
+            <option value="">Everyone</option>
+            {reps.map((c) => (
+              <option key={c} value={c}>
+                {c}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="side-check">
+          <input type="checkbox" checked={flaggedOnly} onChange={(e) => setFlaggedOnly(e.target.checked)} />
+          Only show ones that need attention
+        </label>
+        {(customer || salesperson || flaggedOnly) && (
+          <button
+            className="side-clear"
+            onClick={() => {
+              setCustomer('');
+              setSalesperson('');
+              setFlaggedOnly(false);
+            }}
+          >
+            Clear filters
+          </button>
+        )}
+      </div>
+
+      <CustomerList
+        rows={data.rows.filter((r) => r.kind === tab && (!salesperson || r.salesperson === salesperson))}
+        today={today}
+        selected={customer}
+        onPick={setCustomer}
+        noun={tab === 'quote' ? 'quotes' : 'orders'}
+      />
+
+      <div className="side-section side-bottom">
+        <a
+          className={customer ? 'button-link' : 'button-link disabled'}
+          href={customer ? `/api/export?customer=${encodeURIComponent(customer)}` : undefined}
+          aria-disabled={!customer}
+          title={customer ? "Download this customer's open and in-progress orders" : 'Choose a customer first'}
+        >
+          Download spreadsheet
+        </a>
+        {!customer && <div className="side-hint">Choose a customer to download their orders.</div>}
+      </div>
+    </div>
+  );
+
   const rowProps = (r: FollowUpRow) => ({
     onClick: () => setSelected(r),
     onKeyDown: (e: React.KeyboardEvent) => (e.key === 'Enter' || e.key === ' ') && setSelected(r),
@@ -103,6 +174,7 @@ export default function FollowUpView({ data, today }: { data: FollowUpData; toda
 
   return (
     <main>
+      {slot && createPortal(sidebar, slot)}
       <header className="top">
         <div>
           <h1>Weekly Follow-Up</h1>
@@ -133,55 +205,6 @@ export default function FollowUpView({ data, today }: { data: FollowUpData; toda
         </nav>
       </header>
 
-      <div className="card filters">
-        <label>
-          Customer
-          <select value={customer} onChange={(e) => setCustomer(e.target.value)}>
-            <option value="">All customers</option>
-            {customers.map((c) => (
-              <option key={c} value={c}>
-                {c}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          Salesperson
-          <select value={salesperson} onChange={(e) => setSalesperson(e.target.value)}>
-            <option value="">Everyone</option>
-            {reps.map((c) => (
-              <option key={c} value={c}>
-                {c}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="check">
-          <input type="checkbox" checked={flaggedOnly} onChange={(e) => setFlaggedOnly(e.target.checked)} />
-          Only show ones that need attention
-        </label>
-        <a
-          className={customer ? 'button-link' : 'button-link disabled'}
-          href={customer ? `/api/export?customer=${encodeURIComponent(customer)}` : undefined}
-          aria-disabled={!customer}
-          title={customer ? 'Download this customer\'s open and in-progress orders' : 'Choose a customer first'}
-        >
-          Download spreadsheet
-        </a>
-        {(customer || salesperson || flaggedOnly) && (
-          <button
-            className="secondary"
-            onClick={() => {
-              setCustomer('');
-              setSalesperson('');
-              setFlaggedOnly(false);
-            }}
-          >
-            Clear filters
-          </button>
-        )}
-      </div>
-
       <Calendar
         rows={tabRows}
         today={today}
@@ -190,15 +213,6 @@ export default function FollowUpView({ data, today }: { data: FollowUpData; toda
         onPick={setSelected}
       />
 
-      <div className="split">
-        <CustomerList
-          rows={data.rows.filter((r) => r.kind === tab && (!salesperson || r.salesperson === salesperson))}
-          today={today}
-          selected={customer}
-          onPick={setCustomer}
-          noun={tab === 'quote' ? 'quotes' : 'orders'}
-        />
-        <div className="split-main">
       {tab === 'open' && (
         <section>
           <h2>
@@ -326,8 +340,6 @@ export default function FollowUpView({ data, today }: { data: FollowUpData; toda
           </div>
         </section>
       )}
-        </div>
-      </div>
 
       {selected && <Details row={selected} today={today} onClose={() => setSelected(null)} />}
     </main>

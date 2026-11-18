@@ -31,6 +31,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 Follow-Up
               </a>
             </nav>
+            <div id="sidebar-slot" className="sidebar-slot" />
             <div className="side-foot">Data from Ostendo · read only</div>
           </aside>
           <div className="workspace">{children}</div>
