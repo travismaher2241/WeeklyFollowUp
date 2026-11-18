@@ -12,6 +12,8 @@ export interface FollowUpRow {
   number: string;
   description: string;
   customer: string;
+  /** PURCHASEREFERENCE: the customer's purchase order number. */
+  po: string;
   salesperson: string;
   /** yyyy-mm-dd. Orders: ORDERDATE. Quotes: ORDERDATE (the quote date). Source text is m/d/yyyy. */
   entered: string | null;
@@ -103,6 +105,7 @@ function mapRow(r: OstendoRow, kind: ListKind): FollowUpRow {
     number: cell(r.ORDERNUMBER),
     description: cell(r.ORDERDESCRIPTION),
     customer: cell(r.CUSTOMER),
+    po: cell(r.PURCHASEREFERENCE),
     salesperson: cell(r.SALESPERSON),
     entered: parseOstendoDate(cell(r.ORDERDATE)),
     required: parseOstendoDate(cell(r.REQUIREDDATE)),
@@ -127,4 +130,4 @@ async function load(): Promise<FollowUpData> {
 }
 
 /** Cached for 1 hour so Ostendo is read at most a few times an hour, whoever opens the page. */
-export const getFollowUpData = unstable_cache(load, ['jobheader-followup-v3'], { revalidate: 3600, tags: ['followup'] });
+export const getFollowUpData = unstable_cache(load, ['jobheader-followup-v4'], { revalidate: 3600, tags: ['followup'] });

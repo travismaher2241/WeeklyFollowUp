@@ -185,6 +185,7 @@ export default function FollowUpView({ data, today }: { data: FollowUpData; toda
                 <tr>
                   <th>Order</th>
                   <th>Customer</th>
+                  <th>Purchase order</th>
                   <th>Description</th>
                   <th>Entered</th>
                   <th>Required</th>
@@ -197,6 +198,7 @@ export default function FollowUpView({ data, today }: { data: FollowUpData; toda
                   <tr key={r.id} className="clickable" {...rowProps(r)}>
                     <td className="ordno">{r.number}</td>
                     <td>{r.customer}</td>
+                    <td>{r.po}</td>
                     <td className="desc">{r.description}</td>
                     <td>{showDate(r.entered)}</td>
                     <td>{showDate(r.required) || <span className="muted">Not set</span>}</td>
@@ -204,7 +206,7 @@ export default function FollowUpView({ data, today }: { data: FollowUpData; toda
                     <td>{flag && <span className="pill red">{FOLLOW_UP_LABEL}</span>}</td>
                   </tr>
                 ))}
-                {open.length === 0 && <Empty cols={7} />}
+                {open.length === 0 && <Empty cols={8} />}
               </tbody>
             </table>
           </div>
@@ -230,6 +232,7 @@ export default function FollowUpView({ data, today }: { data: FollowUpData; toda
                 <tr>
                   <th>Order</th>
                   <th>Customer</th>
+                  <th>Purchase order</th>
                   <th>Description</th>
                   <th>Entered</th>
                   <th>Required</th>
@@ -241,13 +244,14 @@ export default function FollowUpView({ data, today }: { data: FollowUpData; toda
                   <tr key={r.id} className={`clickable${colour ? ` row-${colour}` : ''}`} {...rowProps(r)}>
                     <td className="ordno">{r.number}</td>
                     <td>{r.customer}</td>
+                    <td>{r.po}</td>
                     <td className="desc">{r.description}</td>
                     <td>{showDate(r.entered)}</td>
                     <td>{showDate(r.required) || <span className="muted">Not set</span>}</td>
                     <Value v={r.valueExGst} />
                   </tr>
                 ))}
-                {inProgress.length === 0 && <Empty cols={6} />}
+                {inProgress.length === 0 && <Empty cols={7} />}
               </tbody>
             </table>
           </div>
