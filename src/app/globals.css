@@ -126,7 +126,7 @@ section { margin-top: 8px; }
 .calendar { margin-top: 0; }
 .cal-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; }
 .cal-day { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 8px; min-height: 88px; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
-.cal-day.past { background: #fafbfc; opacity: .65; }
+
 .cal-day.today { border-color: var(--green); box-shadow: inset 0 0 0 1px var(--green); }
 .cal-head { display: flex; justify-content: space-between; font-size: 12px; font-weight: 600; margin-bottom: 2px; }
 .cal-day.today .cal-head span:first-child { color: var(--green-dark); }
@@ -165,3 +165,11 @@ dd { margin: 0; white-space: pre-wrap; word-break: break-word; }
 .button-link { display: inline-flex; align-items: center; height: 38px; padding: 0 14px; border-radius: 6px; background: var(--green); color: #fff; font-weight: 500; text-decoration: none; border: 1px solid var(--green); }
 .button-link:hover { background: var(--green-dark); border-color: var(--green-dark); }
 .button-link.disabled { background: #fff; color: var(--muted); border-color: var(--line); cursor: not-allowed; }
+/* Past days: clearly blanked off but still readable */
+.cal-day.past {
+  background: repeating-linear-gradient(135deg, #e4e9ee 0 6px, #edf1f4 6px 12px);
+  border-color: #cfd8df; border-style: dashed; opacity: 1;
+}
+.cal-day.past .cal-head span { color: #8a97a3; }
+.cal-day.past .cal-item { background: #d5dce2; color: #5b6875; font-weight: 500; }
+.cal-day.past .cal-item:hover { background: #c8d0d7; }
