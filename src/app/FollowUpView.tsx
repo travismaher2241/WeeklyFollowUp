@@ -37,10 +37,18 @@ export default function FollowUpView({ data, today }: { data: FollowUpData; toda
   const [tab, setTab] = useState<ListKind>('open');
   const [selected, setSelected] = useState<FollowUpRow | null>(null);
 
-  const customers = useMemo(
-    () => [...new Set(data.rows.map((r) => r.customer).filter(Boolean))].sort((a, b) => a.localeCompare(b)),
-    [data],
-  );
+  // Only customers that appear in the current tab (and salesperson, if one is chosen).
+  // The chosen customer stays in the list so switching tabs never loses the selection.
+  const customers = useMemo(() => {
+    const set = new Set(
+      data.rows
+        .filter((r) => r.kind === tab && (!salesperson || r.salesperson === salesperson))
+        .map((r) => r.customer)
+        .filter(Boolean),
+    );
+    if (customer) set.add(customer);
+    return [...set].sort((a, b) => a.localeCompare(b));
+  }, [data, tab, salesperson, customer]);
   const reps = useMemo(() => [...new Set(data.rows.map((r) => r.salesperson).filter(Boolean))].sort(), [data]);
 
   const shown = data.rows.filter(
