@@ -215,3 +215,19 @@ dd { margin: 0; white-space: pre-wrap; word-break: break-word; }
   .cust-list, .side-hint, .side-label { display: none; }
   .side-bottom { padding-top: 0; border: none; }
 }
+/* Meeting notes */
+th.pick, td.pick { width: 64px; text-align: center; }
+td.pick input { width: 16px; height: 16px; accent-color: var(--green); cursor: pointer; margin: 0; }
+tr.picked td.ordno { box-shadow: inset 3px 0 0 var(--green); }
+td.note-col, th.note-col { min-width: 280px; white-space: normal; }
+.note-box { font-family: inherit; font-size: 13px; width: 100%; resize: vertical; min-height: 40px; padding: 6px 8px; }
+.small-btn { height: 30px; padding: 0 10px; font-size: 12.5px; }
+button.danger { background: var(--red-text); border-color: var(--red-text); }
+button.danger:hover { background: #912018; border-color: #912018; }
+.notice { background: #eef4ff; color: #1d3a6b; border: 1px solid #d3e0f7; border-radius: 6px; padding: 8px 12px; font-size: 13px; margin: 0 0 10px; }
+.notice.bad { background: var(--red); color: var(--red-text); border-color: #f5c2c0; }
+td.clickable-cell { cursor: pointer; text-decoration: underline; text-decoration-color: rgba(0,140,68,.3); }
+tr.gone td { background: #fafbfc; }
+.icon-btn { width: 30px; height: 30px; padding: 0; font-size: 18px; line-height: 1; color: var(--muted); }
+td.note-col, th.note-col { min-width: 240px; }
+.side-bottom .button-link { white-space: nowrap; font-size: 13px; padding: 0 10px; }

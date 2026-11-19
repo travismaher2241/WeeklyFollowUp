@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { useMeetingNotes } from './useMeetingNotes';
 import type { FollowUpData, FollowUpRow, ListKind } from '@/lib/followup';
 import {
   addDays,
@@ -15,7 +16,8 @@ import {
 } from '@/lib/rules';
 
 const money = new Intl.NumberFormat('en-AU', { style: 'currency', currency: 'AUD', maximumFractionDigits: 0 });
-const TAB_LABEL: Record<ListKind, string> = { open: 'Open', inprogress: 'In progress', quote: 'Quotes' };
+type View = ListKind | 'meeting';
+const TAB_LABEL: Record<View, string> = { open: 'Open', inprogress: 'In progress', quote: 'Quotes', meeting: 'Meeting' };
 
 function byDate(get: (r: FollowUpRow) => string | null) {
   return (a: FollowUpRow, b: FollowUpRow) => (get(a) ?? '9999').localeCompare(get(b) ?? '9999');
@@ -35,21 +37,27 @@ export default function FollowUpView({ data, today }: { data: FollowUpData; toda
   const [salesperson, setSalesperson] = useState('');
   const [flaggedOnly, setFlaggedOnly] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
-  const [tab, setTab] = useState<ListKind>('open');
+  const [tab, setTab] = useState<View>('open');
   const [selected, setSelected] = useState<FollowUpRow | null>(null);
+  const meeting = useMeetingNotes();
+  const [confirmClear, setConfirmClear] = useState(false);
+  const isOrder = (r: FollowUpRow) => r.kind === 'open' || r.kind === 'inprogress';
+  // Which rows belong to the current tab. The Meeting tab holds the orders picked for the review meeting.
+  const inView = (r: FollowUpRow) => (tab === 'meeting' ? isOrder(r) && !!meeting.notes[r.number] : r.kind === tab);
 
   // Only customers that appear in the current tab (and salesperson, if one is chosen).
   // The chosen customer stays in the list so switching tabs never loses the selection.
   const customers = useMemo(() => {
     const set = new Set(
       data.rows
-        .filter((r) => r.kind === tab && (!salesperson || r.salesperson === salesperson))
+        .filter((r) => inView(r) && (!salesperson || r.salesperson === salesperson))
         .map((r) => r.customer)
         .filter(Boolean),
     );
     if (customer) set.add(customer);
     return [...set].sort((a, b) => a.localeCompare(b));
-  }, [data, tab, salesperson, customer]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data, tab, salesperson, customer, meeting.notes]);
   const reps = useMemo(() => [...new Set(data.rows.map((r) => r.salesperson).filter(Boolean))].sort(), [data]);
 
   const shown = data.rows.filter(
@@ -74,14 +82,23 @@ export default function FollowUpView({ data, today }: { data: FollowUpData; toda
     .filter((x) => !flaggedOnly || x.flag)
     .sort((a, b) => byDate((r) => r.entered)(a.r, b.r));
 
-  const tabs: [ListKind, number, number][] = [
+  const meetingRows = shown
+    .filter((r) => isOrder(r) && meeting.notes[r.number])
+    .sort(byDate((r) => r.required));
+  const liveNumbers = new Set(data.rows.filter(isOrder).map((r) => r.number));
+  // Picked orders that are no longer Open or InProgress in Ostendo (finished, closed, or renumbered).
+  const goneNotes = Object.values(meeting.notes).filter((n) => !liveNumbers.has(n.number));
+  const meetingCount = Object.keys(meeting.notes).length;
+
+  const tabs: [View, number, number][] = [
     ['open', open.length, open.filter((x) => x.flag).length],
     ['inprogress', inProgress.length, inProgress.filter((x) => x.colour).length],
     ['quote', quotes.length, quotes.filter((x) => x.flag === 'follow-up').length],
+    ['meeting', meetingCount, 0],
   ];
 
   // The calendar follows the customer and salesperson filters, but not the 'needs attention' tick box.
-  const tabRows = shown.filter((r) => r.kind === tab);
+  const tabRows = shown.filter(inView);
 
   async function refresh() {
     setRefreshing(true);
@@ -144,7 +161,7 @@ export default function FollowUpView({ data, today }: { data: FollowUpData; toda
       </div>
 
       <CustomerList
-        rows={data.rows.filter((r) => r.kind === tab && (!salesperson || r.salesperson === salesperson))}
+        rows={data.rows.filter((r) => inView(r) && (!salesperson || r.salesperson === salesperson))}
         today={today}
         selected={customer}
         onPick={setCustomer}
@@ -228,6 +245,7 @@ export default function FollowUpView({ data, today }: { data: FollowUpData; toda
             <table>
               <thead>
                 <tr>
+                  <th className="pick" title="Tick to add to the review meeting">Meeting</th>
                   <th>Order</th>
                   <th>Customer</th>
                   <th>Purchase order</th>
@@ -240,7 +258,15 @@ export default function FollowUpView({ data, today }: { data: FollowUpData; toda
               </thead>
               <tbody>
                 {open.map(({ r, flag }) => (
-                  <tr key={r.id} className="clickable" {...rowProps(r)}>
+                  <tr key={r.id} className={`clickable${meeting.notes[r.number] ? ' picked' : ''}`} {...rowProps(r)}>
+                    <td className="pick" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
+                      <input
+                        type="checkbox"
+                        aria-label={`Add ${r.number} to the meeting`}
+                        checked={!!meeting.notes[r.number]}
+                        onChange={(e) => meeting.toggle(r.number, e.target.checked)}
+                      />
+                    </td>
                     <td className="ordno">{r.number}</td>
                     <td>{r.customer}</td>
                     <td>{r.po}</td>
@@ -251,7 +277,7 @@ export default function FollowUpView({ data, today }: { data: FollowUpData; toda
                     <td>{flag && <span className="pill red">{FOLLOW_UP_LABEL}</span>}</td>
                   </tr>
                 ))}
-                {open.length === 0 && <Empty cols={8} />}
+                {open.length === 0 && <Empty cols={9} />}
               </tbody>
             </table>
           </div>
@@ -275,6 +301,7 @@ export default function FollowUpView({ data, today }: { data: FollowUpData; toda
             <table>
               <thead>
                 <tr>
+                  <th className="pick" title="Tick to add to the review meeting">Meeting</th>
                   <th>Order</th>
                   <th>Customer</th>
                   <th>Purchase order</th>
@@ -286,7 +313,15 @@ export default function FollowUpView({ data, today }: { data: FollowUpData; toda
               </thead>
               <tbody>
                 {inProgress.map(({ r, colour }) => (
-                  <tr key={r.id} className={`clickable${colour ? ` row-${colour}` : ''}`} {...rowProps(r)}>
+                  <tr key={r.id} className={`clickable${colour ? ` row-${colour}` : ''}${meeting.notes[r.number] ? ' picked' : ''}`} {...rowProps(r)}>
+                    <td className="pick" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
+                      <input
+                        type="checkbox"
+                        aria-label={`Add ${r.number} to the meeting`}
+                        checked={!!meeting.notes[r.number]}
+                        onChange={(e) => meeting.toggle(r.number, e.target.checked)}
+                      />
+                    </td>
                     <td className="ordno">{r.number}</td>
                     <td>{r.customer}</td>
                     <td>{r.po}</td>
@@ -296,7 +331,7 @@ export default function FollowUpView({ data, today }: { data: FollowUpData; toda
                     <Value v={r.valueExGst} />
                   </tr>
                 ))}
-                {inProgress.length === 0 && <Empty cols={7} />}
+                {inProgress.length === 0 && <Empty cols={8} />}
               </tbody>
             </table>
           </div>
@@ -344,6 +379,107 @@ export default function FollowUpView({ data, today }: { data: FollowUpData; toda
               </tbody>
             </table>
           </div>
+        </section>
+      )}
+
+      {tab === 'meeting' && (
+        <section>
+          <h2>
+            Open Sales Order Review Meeting{' '}
+            <span className="muted small">
+              {meetingCount} order{meetingCount === 1 ? '' : 's'} picked.{' '}
+              {meeting.mode === 'shared' && (meeting.saving === 'saving' ? 'Saving...' : meeting.saving === 'failed' ? 'Last change did not save. Try again.' : 'All changes saved.')}
+            </span>
+          </h2>
+          {meeting.mode === 'local' && (
+            <p className="notice">Notes are being saved in this browser only, until shared storage is set up.</p>
+          )}
+          {meeting.mode === 'error' && <p className="notice bad">Couldn&apos;t load the saved notes. Reload the page to try again.</p>}
+          <p className="legend">Tick orders on the Open or In progress tabs to add them here. Notes stay until you remove them or clear the list. They are never written to Ostendo.</p>
+          <div className="scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>Order</th>
+                  <th>Customer</th>
+                  <th>Purchase order</th>
+                  <th>Description</th>
+                  <th>Status</th>
+                  <th>Required</th>
+                  <th className="num">Value ex GST</th>
+                  <th className="note-col">Meeting notes</th>
+                  <th />
+                </tr>
+              </thead>
+              <tbody>
+                {meetingRows.map((r) => (
+                  <tr key={r.id} className={`${inProgressColour(r.required, today) === 'red' || openOrderFlag(r.required, today) ? 'row-red' : ''}`}>
+                    <td className="ordno clickable-cell" onClick={() => setSelected(r)}>{r.number}</td>
+                    <td>{r.customer}</td>
+                    <td>{r.po}</td>
+                    <td className="desc">{r.description}</td>
+                    <td>{TAB_LABEL[r.kind]}</td>
+                    <td>{showDate(r.required) || <span className="muted">Not set</span>}</td>
+                    <Value v={r.valueExGst} />
+                    <td className="note-col">
+                      <textarea
+                        className="note-box"
+                        rows={2}
+                        placeholder="What was said..."
+                        value={meeting.notes[r.number]?.note ?? ''}
+                        onChange={(e) => meeting.setNote(r.number, e.target.value)}
+                      />
+                    </td>
+                    <td>
+                      <button className="secondary icon-btn" onClick={() => meeting.toggle(r.number, false)} title="Remove from the meeting" aria-label={`Remove ${r.number} from the meeting`}>
+                        ×
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+                {!customer && !salesperson && goneNotes.map((n) => (
+                  <tr key={`gone-${n.number}`} className="gone">
+                    <td className="ordno">{n.number}</td>
+                    <td colSpan={6} className="muted">No longer open or in progress in Ostendo.</td>
+                    <td className="note-col">
+                      <textarea className="note-box" rows={2} value={n.note} onChange={(e) => meeting.setNote(n.number, e.target.value)} />
+                    </td>
+                    <td>
+                      <button className="secondary icon-btn" onClick={() => meeting.toggle(n.number, false)} title="Remove from the meeting" aria-label={`Remove ${n.number} from the meeting`}>
+                        ×
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+                {meetingRows.length === 0 && (customer || salesperson || goneNotes.length === 0) && (
+                  <tr>
+                    <td colSpan={9} className="muted">
+                      {meetingCount === 0 ? 'No orders picked yet. Tick orders on the Open or In progress tabs.' : 'No picked orders match the filters.'}
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+          {meetingCount > 0 && (
+            <div className="row" style={{ marginTop: 12 }}>
+              {!confirmClear ? (
+                <button className="secondary" onClick={() => setConfirmClear(true)}>
+                  Clear meeting list
+                </button>
+              ) : (
+                <>
+                  <span>Remove all {meetingCount} orders and their notes?</span>
+                  <button className="danger" onClick={() => { meeting.clearAll(); setConfirmClear(false); }}>
+                    Yes, clear everything
+                  </button>
+                  <button className="secondary" onClick={() => setConfirmClear(false)}>
+                    Cancel
+                  </button>
+                </>
+              )}
+            </div>
+          )}
         </section>
       )}
 
