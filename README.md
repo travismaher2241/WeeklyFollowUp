@@ -30,3 +30,11 @@ Everything is in Ostendo's `JOBHEADER` table (about 9,200 rows, 70 MB in total, 
 | Salesperson | `SALESPERSON` |
 
 The rules are in `src/lib/rules.ts`. The label for quotes over 3 months old is `OLD_QUOTE_LABEL` there.
+
+## Meeting notes (Firebase)
+
+The Meeting tab's notes are stored in Firebase Firestore, never in Ostendo: one document,
+`weeklyFollowUp/meetingNotes`, so a page load costs a single read. Vercel settings needed (server-side only):
+either `FIREBASE_SERVICE_ACCOUNT` (the whole service-account JSON, marked Sensitive) or
+`FIREBASE_PROJECT_ID`, `FIREBASE_CLIENT_EMAIL` and `FIREBASE_PRIVATE_KEY`. Without them, notes fall back
+to the browser's local storage.

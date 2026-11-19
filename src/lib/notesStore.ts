@@ -1,5 +1,8 @@
-// Meeting notes storage. SERVER-SIDE ONLY. Notes live in the app's own Upstash Redis database
-// (added through Vercel's Storage tab). Nothing here ever talks to Ostendo.
+// Meeting notes storage. SERVER-SIDE ONLY. Notes live in Firebase Firestore, in one document
+// (weeklyFollowUp/meetingNotes) so each page load costs a single read on the free plan.
+// Nothing here ever talks to Ostendo.
+import { cert, getApps, initializeApp, type App } from 'firebase-admin/app';
+import { FieldPath, FieldValue, getFirestore } from 'firebase-admin/firestore';
 
 export interface MeetingNote {
   number: string;
@@ -8,61 +11,83 @@ export interface MeetingNote {
   updatedAt: string;
 }
 
-const KEY = 'meeting-notes:v1';
+const COLLECTION = 'weeklyFollowUp';
+const DOC = 'meetingNotes';
+const APP_NAME = 'weekly-follow-up';
 
-function settings(): { url: string; token: string } | null {
-  const url = (process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL || '').trim();
-  const token = (process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN || '').trim();
-  if (!url || !token) return null;
-  try {
-    const u = new URL(url);
-    if (u.protocol !== 'https:' || !u.hostname.endsWith('.upstash.io')) return null;
-  } catch {
-    return null;
+interface Credentials {
+  projectId: string;
+  clientEmail: string;
+  privateKey: string;
+}
+
+function credentials(): Credentials | null {
+  const json = process.env.FIREBASE_SERVICE_ACCOUNT?.trim();
+  if (json) {
+    try {
+      const j = JSON.parse(json);
+      if (j.project_id && j.client_email && j.private_key)
+        return { projectId: j.project_id, clientEmail: j.client_email, privateKey: j.private_key };
+    } catch {
+      return null;
+    }
   }
-  return { url: url.replace(/\/+$/, ''), token };
+  const projectId = process.env.FIREBASE_PROJECT_ID?.trim();
+  const clientEmail = process.env.FIREBASE_CLIENT_EMAIL?.trim();
+  const privateKey = process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n').trim();
+  if (projectId && clientEmail && privateKey) return { projectId, clientEmail, privateKey };
+  return null;
 }
 
 export function notesConfigured(): boolean {
-  return settings() !== null;
+  return credentials() !== null;
 }
 
-async function redis(command: (string | number)[]): Promise<unknown> {
-  const s = settings();
-  if (!s) throw new Error('Notes storage is not set up');
-  const res = await fetch(s.url, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${s.token}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify(command),
-    cache: 'no-store',
-    signal: AbortSignal.timeout(10_000),
-  });
-  const json = (await res.json().catch(() => null)) as { result?: unknown; error?: string } | null;
-  if (!res.ok || !json || json.error) throw new Error('Notes storage error');
-  return json.result;
+function app(): App {
+  const existing = getApps().find((a) => a.name === APP_NAME);
+  if (existing) return existing;
+  const c = credentials();
+  if (!c) throw new Error('Firebase is not set up');
+  return initializeApp({ credential: cert(c), projectId: c.projectId }, APP_NAME);
+}
+
+function ref() {
+  return getFirestore(app()).collection(COLLECTION).doc(DOC);
+}
+
+/** Turns Firestore's quota error into a plain message. */
+export function friendlyError(e: unknown): string {
+  const msg = String((e as { code?: unknown; message?: unknown })?.code ?? '') + ' ' + String((e as Error)?.message ?? '');
+  if (/RESOURCE_EXHAUSTED|quota/i.test(msg)) return "Firebase's free daily limit has been reached. Notes will work again after it resets (about 7pm Melbourne time).";
+  if (/PERMISSION_DENIED|UNAUTHENTICATED/i.test(msg)) return 'Firebase rejected the app\'s credentials. Check the Firebase settings in Vercel.';
+  return 'Could not reach Firebase. Try again in a moment.';
 }
 
 export async function listNotes(): Promise<Record<string, MeetingNote>> {
-  const flat = (await redis(['HGETALL', KEY])) as string[] | null;
-  const out: Record<string, MeetingNote> = {};
-  for (let i = 0; flat && i < flat.length; i += 2) {
-    try {
-      out[flat[i]] = JSON.parse(flat[i + 1]) as MeetingNote;
-    } catch {
-      // skip a damaged entry rather than failing the whole list
-    }
-  }
-  return out;
+  const snap = await ref().get();
+  const notes = (snap.exists ? snap.get('notes') : null) as Record<string, MeetingNote> | null;
+  return notes ?? {};
 }
 
 export async function saveNote(n: MeetingNote): Promise<void> {
-  await redis(['HSET', KEY, n.number, JSON.stringify(n)]);
+  const r = ref();
+  try {
+    await r.update(new FieldPath('notes', n.number), n);
+  } catch (e) {
+    // The document doesn't exist yet: create it.
+    if ((e as { code?: number }).code === 5) await r.set({ notes: { [n.number]: n } }, { merge: true });
+    else throw e;
+  }
 }
 
 export async function removeNote(number: string): Promise<void> {
-  await redis(['HDEL', KEY, number]);
+  try {
+    await ref().update(new FieldPath('notes', number), FieldValue.delete());
+  } catch (e) {
+    if ((e as { code?: number }).code !== 5) throw e;
+  }
 }
 
 export async function clearNotes(): Promise<void> {
-  await redis(['DEL', KEY]);
+  await ref().set({ notes: {} });
 }

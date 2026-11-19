@@ -1,8 +1,9 @@
 // Meeting notes API. Stores notes in the app's own database only; never writes to Ostendo.
 import { NextRequest, NextResponse } from 'next/server';
-import { clearNotes, listNotes, notesConfigured, removeNote, saveNote } from '@/lib/notesStore';
+import { clearNotes, friendlyError, listNotes, notesConfigured, removeNote, saveNote } from '@/lib/notesStore';
 
 export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
 
 const headers = { 'Cache-Control': 'no-store' };
 const NUMBER = /^[A-Za-z0-9#\-\/ .]{1,40}$/;
@@ -11,8 +12,8 @@ export async function GET() {
   if (!notesConfigured()) return NextResponse.json({ mode: 'local', notes: {} }, { headers });
   try {
     return NextResponse.json({ mode: 'shared', notes: await listNotes() }, { headers });
-  } catch {
-    return NextResponse.json({ mode: 'error', notes: {} }, { status: 502, headers });
+  } catch (e) {
+    return NextResponse.json({ mode: 'error', error: friendlyError(e), notes: {} }, { status: 502, headers });
   }
 }
 
@@ -36,8 +37,8 @@ export async function POST(req: NextRequest) {
       });
     }
     return NextResponse.json({ ok: true }, { headers });
-  } catch {
-    return NextResponse.json({ error: 'Could not save the note' }, { status: 502, headers });
+  } catch (e) {
+    return NextResponse.json({ error: friendlyError(e) }, { status: 502, headers });
   }
 }
 
@@ -46,7 +47,7 @@ export async function DELETE() {
   try {
     await clearNotes();
     return NextResponse.json({ ok: true }, { headers });
-  } catch {
-    return NextResponse.json({ error: 'Could not clear the notes' }, { status: 502, headers });
+  } catch (e) {
+    return NextResponse.json({ error: friendlyError(e) }, { status: 502, headers });
   }
 }

@@ -32,13 +32,15 @@ export function useMeetingNotes() {
   const [notes, setNotes] = useState<Record<string, MeetingNote>>({});
   const [mode, setMode] = useState<NotesMode>('loading');
   const [saving, setSaving] = useState<'idle' | 'saving' | 'saved' | 'failed'>('idle');
+  const [error, setError] = useState('');
   const timers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   const modeRef = useRef<NotesMode>('loading');
 
   useEffect(() => {
     fetch('/api/notes', { cache: 'no-store' })
       .then((r) => r.json())
-      .then((j: { mode: NotesMode; notes: Record<string, MeetingNote> }) => {
+      .then((j: { mode: NotesMode; notes: Record<string, MeetingNote>; error?: string }) => {
+        if (j.error) setError(j.error);
         const m = j.mode === 'shared' ? 'shared' : j.mode === 'error' ? 'error' : 'local';
         modeRef.current = m;
         setMode(m);
@@ -59,6 +61,8 @@ export function useMeetingNotes() {
         body: method === 'POST' ? JSON.stringify(body) : undefined,
       });
       setSaving(r.ok ? 'saved' : 'failed');
+      if (!r.ok) setError(((await r.json().catch(() => ({}))) as { error?: string }).error ?? 'Could not save.');
+      else setError('');
     } catch {
       setSaving('failed');
     }
@@ -112,5 +116,5 @@ export function useMeetingNotes() {
     if (modeRef.current === 'shared') send({}, 'DELETE');
   }, [send, update]);
 
-  return { notes, mode, saving, toggle, setNote, clearAll };
+  return { notes, mode, saving, error, toggle, setNote, clearAll };
 }

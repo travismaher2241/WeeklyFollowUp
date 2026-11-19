@@ -388,13 +388,13 @@ export default function FollowUpView({ data, today }: { data: FollowUpData; toda
             Open Sales Order Review Meeting{' '}
             <span className="muted small">
               {meetingCount} order{meetingCount === 1 ? '' : 's'} picked.{' '}
-              {meeting.mode === 'shared' && (meeting.saving === 'saving' ? 'Saving...' : meeting.saving === 'failed' ? 'Last change did not save. Try again.' : 'All changes saved.')}
+              {meeting.mode === 'shared' && (meeting.saving === 'saving' ? 'Saving...' : meeting.saving === 'failed' ? `Last change did not save. ${meeting.error}` : 'All changes saved.')}
             </span>
           </h2>
           {meeting.mode === 'local' && (
-            <p className="notice">Notes are being saved in this browser only, until shared storage is set up.</p>
+            <p className="notice">Notes are being saved in this browser only until Firebase is connected.</p>
           )}
-          {meeting.mode === 'error' && <p className="notice bad">Couldn&apos;t load the saved notes. Reload the page to try again.</p>}
+          {meeting.mode === 'error' && <p className="notice bad">Couldn&apos;t load the saved notes. {meeting.error || 'Reload the page to try again.'}</p>}
           <p className="legend">Tick orders on the Open or In progress tabs to add them here. Notes stay until you remove them or clear the list. They are never written to Ostendo.</p>
           <div className="scroll">
             <table>
