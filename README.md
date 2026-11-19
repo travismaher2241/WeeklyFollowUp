@@ -38,3 +38,20 @@ The Meeting tab's notes are stored in Firebase Firestore, never in Ostendo: one 
 either `FIREBASE_SERVICE_ACCOUNT` (the whole service-account JSON, marked Sensitive) or
 `FIREBASE_PROJECT_ID`, `FIREBASE_CLIENT_EMAIL` and `FIREBASE_PRIVATE_KEY`. Without them, notes fall back
 to the browser's local storage.
+
+## Delivery confirmation copy (this branch)
+
+This branch is a separate copy of the app, deployed to its own Vercel project, that adds customer delivery-date confirmations.
+The live Weekly Follow-Up app is untouched.
+
+- Staff page `/confirmations`: pick a customer with In-progress orders, enter one contact, and make a private link
+  (unguessable, expires after 7 to 30 days). Nothing is emailed automatically.
+- Customer page `/confirm/<token>`: their In-progress orders as they were when the link was made (PO, description, items,
+  delivery date, no prices). Each order: date is correct, new date (weekdays only, at least 3 business days out), or date unknown with a note.
+  Orders within 2 business days of their date are locked. Submit once, then the page locks and points to lightsales@plasgain.com.au.
+- Storage: Firebase only. `deliveryConfirmLinks/{token}` per link, `deliveryConfirmApp/linkIndex` summary, and this copy's own
+  meeting notes in `deliveryConfirmApp/meetingNotes`. The customer page never reads Ostendo.
+- Sign in: because customer links must be public, every staff page needs `APP_PASSWORD` (8+ characters) set in Vercel.
+- Vercel settings needed: `APP_PASSWORD`, `OSTENDO_API_URL`, `OSTENDO_API_KEY`, and the Firebase settings above.
+- Local testing without Firebase: `CONFIRM_STORE=memory APP_PASSWORD=testpass123 npm run dev`, then open
+  `/confirm/localTestLinkForTryingThePage001`.

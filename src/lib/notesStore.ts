@@ -1,8 +1,11 @@
 // Meeting notes storage. SERVER-SIDE ONLY. Notes live in Firebase Firestore, in one document
-// (weeklyFollowUp/meetingNotes) so each page load costs a single read on the free plan.
+// (deliveryConfirmApp/meetingNotes) so each page load costs a single read on the free plan.
+// This copy of the app keeps its own notes, separate from the live Weekly Follow-Up app's weeklyFollowUp/meetingNotes.
 // Nothing here ever talks to Ostendo.
-import { cert, getApps, initializeApp, type App } from 'firebase-admin/app';
-import { FieldPath, FieldValue, getFirestore } from 'firebase-admin/firestore';
+import { FieldPath, FieldValue } from 'firebase-admin/firestore';
+import { db, firebaseConfigured, friendlyError } from './firebase';
+
+export { friendlyError };
 
 export interface MeetingNote {
   number: string;
@@ -11,61 +14,15 @@ export interface MeetingNote {
   updatedAt: string;
 }
 
-const COLLECTION = 'weeklyFollowUp';
+const COLLECTION = 'deliveryConfirmApp';
 const DOC = 'meetingNotes';
-const APP_NAME = 'weekly-follow-up';
-
-interface Credentials {
-  projectId: string;
-  clientEmail: string;
-  privateKey: string;
-}
-
-function credentials(): Credentials | null {
-  const json = process.env.FIREBASE_SERVICE_ACCOUNT?.trim();
-  if (json) {
-    try {
-      const j = JSON.parse(json);
-      if (j.project_id && j.client_email && j.private_key)
-        return { projectId: j.project_id, clientEmail: j.client_email, privateKey: j.private_key };
-    } catch {
-      return null;
-    }
-  }
-  const projectId = process.env.FIREBASE_PROJECT_ID?.trim();
-  const clientEmail = process.env.FIREBASE_CLIENT_EMAIL?.trim();
-  const privateKey = process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n').trim();
-  if (projectId && clientEmail && privateKey) return { projectId, clientEmail, privateKey };
-  return null;
-}
 
 export function notesConfigured(): boolean {
-  return credentials() !== null;
-}
-
-function app(): App {
-  const existing = getApps().find((a) => a.name === APP_NAME);
-  if (existing) return existing;
-  const c = credentials();
-  if (!c) throw new Error('Firebase is not set up');
-  return initializeApp({ credential: cert(c), projectId: c.projectId }, APP_NAME);
+  return firebaseConfigured();
 }
 
 function ref() {
-  return getFirestore(app()).collection(COLLECTION).doc(DOC);
-}
-
-/** Turns Firestore's quota error into a plain message. */
-export function friendlyError(e: unknown): string {
-  const msg = String((e as { code?: unknown; message?: unknown })?.code ?? '') + ' ' + String((e as Error)?.message ?? '');
-  // Log the reason (never the credentials) so it shows in Vercel's logs.
-  console.error('[notes] Firebase error:', msg.replace(/-----BEGIN[\s\S]*?-----END[^-]*-----/g, '[key]').slice(0, 400));
-  if (/has not been used|is disabled|SERVICE_DISABLED/i.test(msg)) return 'Cloud Firestore is not switched on for this Firebase project yet.';
-  if (/database.*does not exist|NOT_FOUND/i.test(msg)) return 'This Firebase project has no Firestore database yet.';
-  if (/DECODER|PEM|private key|invalid_grant|JWT/i.test(msg)) return 'The Firebase key in Vercel looks incomplete or out of date. Generate a new key and paste the whole file again.';
-  if (/RESOURCE_EXHAUSTED|quota/i.test(msg)) return "Firebase's free daily limit has been reached. Notes will work again after it resets (about 7pm Melbourne time).";
-  if (/PERMISSION_DENIED|UNAUTHENTICATED/i.test(msg)) return 'Firebase rejected the app\'s credentials. Check the Firebase settings in Vercel.';
-  return 'Could not reach Firebase. Try again in a moment.';
+  return db().collection(COLLECTION).doc(DOC);
 }
 
 export async function listNotes(): Promise<Record<string, MeetingNote>> {
