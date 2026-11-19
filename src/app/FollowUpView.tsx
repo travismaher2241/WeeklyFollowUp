@@ -654,8 +654,64 @@ function Details({ row, today, onClose }: { row: FollowUpRow; today: string; onC
             </div>
           ))}
         </dl>
+        <OrderLines order={row.number} isQuote={isQuote} />
       </aside>
     </div>
+  );
+}
+
+type Line = { line: number; code: string; description: string; qty: number | null; unit: string; remaining: number | null };
+
+/** Items on the order. Fetched from Ostendo only when this order is opened. */
+function OrderLines({ order, isQuote }: { order: string; isQuote: boolean }) {
+  const [state, setState] = useState<{ lines?: Line[]; error?: string }>({});
+  useEffect(() => {
+    let live = true;
+    setState({});
+    fetch(`/api/order-lines?order=${encodeURIComponent(order)}`, { cache: 'no-store' })
+      .then((r) => r.json())
+      .then((j) => live && setState(j.lines ? { lines: j.lines } : { error: j.error ?? 'Could not load the items' }))
+      .catch(() => live && setState({ error: 'Could not load the items' }));
+    return () => {
+      live = false;
+    };
+  }, [order]);
+
+  const qty = (n: number | null) => (n === null ? '' : n.toLocaleString('en-AU', { maximumFractionDigits: 3 }));
+  const showRemaining = !isQuote && (state.lines ?? []).some((l) => l.remaining !== null && l.remaining !== l.qty);
+
+  return (
+    <section className="lines">
+      <h3>Items {isQuote ? 'quoted' : 'on this order'}</h3>
+      {!state.lines && !state.error && <p className="muted small">Loading items from Ostendo...</p>}
+      {state.error && <p className="bad small">{state.error}</p>}
+      {state.lines && state.lines.length === 0 && <p className="muted small">No items found for this {isQuote ? 'quote' : 'order'}.</p>}
+      {state.lines && state.lines.length > 0 && (
+        <table className="lines-table">
+          <thead>
+            <tr>
+              <th>Item</th>
+              <th className="num">Qty</th>
+              {showRemaining && <th className="num">To supply</th>}
+            </tr>
+          </thead>
+          <tbody>
+            {state.lines.map((l) => (
+              <tr key={l.line}>
+                <td>
+                  <div className="line-code">{l.code}</div>
+                  {l.description && l.description !== l.code && <div className="muted small">{l.description}</div>}
+                </td>
+                <td className="num">
+                  {qty(l.qty)} {l.qty !== null && l.unit}
+                </td>
+                {showRemaining && <td className="num">{qty(l.remaining)}</td>}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </section>
   );
 }
 

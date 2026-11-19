@@ -231,3 +231,12 @@ tr.gone td { background: #fafbfc; }
 .icon-btn { width: 30px; height: 30px; padding: 0; font-size: 18px; line-height: 1; color: var(--muted); }
 td.note-col, th.note-col { min-width: 240px; }
 .side-bottom .button-link { white-space: nowrap; font-size: 13px; padding: 0 10px; }
+
+/* Order items in the details drawer */
+.lines { margin-top: 20px; }
+.lines h3 { font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: var(--muted, #5b6b75); margin: 0 0 8px; }
+.lines-table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+.lines-table th { text-align: left; font-weight: 600; font-size: 12px; color: var(--muted, #5b6b75); padding: 6px 8px; border-bottom: 1px solid var(--line); background: var(--bg, #f6f8fa); }
+.lines-table td { white-space: normal; padding: 8px; border-bottom: 1px solid var(--line-soft, #eef2f5); vertical-align: top; }
+.lines-table .num { text-align: right; white-space: nowrap; }
+.line-code { font-weight: 600; }
