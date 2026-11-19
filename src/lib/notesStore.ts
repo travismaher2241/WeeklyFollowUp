@@ -58,6 +58,11 @@ function ref() {
 /** Turns Firestore's quota error into a plain message. */
 export function friendlyError(e: unknown): string {
   const msg = String((e as { code?: unknown; message?: unknown })?.code ?? '') + ' ' + String((e as Error)?.message ?? '');
+  // Log the reason (never the credentials) so it shows in Vercel's logs.
+  console.error('[notes] Firebase error:', msg.replace(/-----BEGIN[\s\S]*?-----END[^-]*-----/g, '[key]').slice(0, 400));
+  if (/has not been used|is disabled|SERVICE_DISABLED/i.test(msg)) return 'Cloud Firestore is not switched on for this Firebase project yet.';
+  if (/database.*does not exist|NOT_FOUND/i.test(msg)) return 'This Firebase project has no Firestore database yet.';
+  if (/DECODER|PEM|private key|invalid_grant|JWT/i.test(msg)) return 'The Firebase key in Vercel looks incomplete or out of date. Generate a new key and paste the whole file again.';
   if (/RESOURCE_EXHAUSTED|quota/i.test(msg)) return "Firebase's free daily limit has been reached. Notes will work again after it resets (about 7pm Melbourne time).";
   if (/PERMISSION_DENIED|UNAUTHENTICATED/i.test(msg)) return 'Firebase rejected the app\'s credentials. Check the Firebase settings in Vercel.';
   return 'Could not reach Firebase. Try again in a moment.';
