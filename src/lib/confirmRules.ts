@@ -2,7 +2,7 @@
 // "48 hours" counts business days (Monday to Friday) only. Public holidays are not counted out.
 import { addDays, todayMelbourne } from './rules';
 
-export const SALES_EMAIL = 'lightsales@plasgain.com.au';
+export const SALES_EMAIL = 'light-sales@plasgain.com.au';
 export const LOCK_BUSINESS_DAYS = 2;
 export const RULE_TEXT =
   'Confirmed deliveries cannot be delayed or altered within 48 hours (2 business days) of the confirmed delivery date.';
