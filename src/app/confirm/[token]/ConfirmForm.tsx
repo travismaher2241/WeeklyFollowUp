@@ -66,7 +66,7 @@ function OrderHead({ o }: { o: ConfirmOrder }) {
 export default function ConfirmForm({ token, data }: { token: string; data: PublicLink }) {
   const today = data.today;
   const [drafts, setDrafts] = useState<Record<string, Draft>>({});
-  const [name, setName] = useState(data.contactName);
+  const [name, setName] = useState('');
   const [understood, setUnderstood] = useState(false);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState('');

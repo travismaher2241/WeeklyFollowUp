@@ -35,6 +35,8 @@ export interface LinkSummary {
   cancelled: boolean;
   orderCount: number;
   submittedAt: string | null;
+  /** The name the customer typed when they submitted. */
+  submittedBy?: string;
   changes: number;
 }
 
@@ -56,6 +58,7 @@ function summary(l: StoredLink): LinkSummary {
     cancelled: l.cancelled,
     orderCount: l.orders.length,
     submittedAt: l.response?.submittedAt ?? null,
+    submittedBy: l.response?.name ?? '',
     changes: changeCount(l.response),
   };
 }

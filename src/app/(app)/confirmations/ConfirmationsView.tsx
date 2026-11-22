@@ -26,9 +26,8 @@ const when = (iso: string | null) =>
 const day = (iso: string) => new Date(iso).toLocaleDateString('en-AU', { timeZone: 'Australia/Melbourne', day: '2-digit', month: '2-digit', year: 'numeric' });
 const linkUrl = (token: string) => `${window.location.origin}/confirm/${token}`;
 
-function mailto(l: { contactEmail: string; contactName: string; customer: string; token: string; expiresAt: string }) {
-  const first = l.contactName.split(' ')[0] || 'there';
-  const body = `Hi ${first},
+function mailto(l: { customer: string; token: string; expiresAt: string }) {
+  const body = `Hi,
 
 Please confirm the delivery dates for your current ${l.customer} orders with Plasgain using the link below. For each order you can confirm the date, choose a new date, or let us know the date is unknown.
 
@@ -36,10 +35,10 @@ ${linkUrl(l.token)}
 
 Please note: confirmed deliveries cannot be delayed or altered within 48 hours (2 business days) of the confirmed delivery date.
 
-The link is for you only and expires on ${day(l.expiresAt)}.
+The link expires on ${day(l.expiresAt)}.
 
 Thank you`;
-  return `mailto:${encodeURIComponent(l.contactEmail)}?subject=${encodeURIComponent('Please confirm your delivery dates - Plasgain')}&body=${encodeURIComponent(body)}`;
+  return `mailto:?subject=${encodeURIComponent('Please confirm your delivery dates - Plasgain')}&body=${encodeURIComponent(body)}`;
 }
 
 function StatusPill({ s }: { s: LinkStatus }) {
@@ -69,8 +68,6 @@ export default function ConfirmationsView({ customers, ostendoError, today }: { 
   const [loadError, setLoadError] = useState('');
   const [loading, setLoading] = useState(true);
   const [customer, setCustomer] = useState('');
-  const [contactName, setContactName] = useState('');
-  const [contactEmail, setContactEmail] = useState('');
   const [days, setDays] = useState(14);
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState('');
@@ -99,10 +96,6 @@ export default function ConfirmationsView({ customers, ostendoError, today }: { 
   function chooseCustomer(name: string) {
     setCustomer(name);
     setCreated(null);
-    const c = customers.find((x) => x.name === name);
-    const first = c?.contacts.find((x) => x.name) ?? c?.contacts[0];
-    setContactName(first?.name ?? '');
-    setContactEmail(first?.email ?? '');
   }
 
   async function create() {
@@ -112,7 +105,7 @@ export default function ConfirmationsView({ customers, ostendoError, today }: { 
       const res = await fetch('/api/links', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ customer, contactName, contactEmail, days }),
+        body: JSON.stringify({ customer, days }),
       });
       const j = await res.json();
       if (!res.ok) throw new Error(j.error || 'Could not make the link');
@@ -153,20 +146,6 @@ export default function ConfirmationsView({ customers, ostendoError, today }: { 
             </select>
           </label>
           <label>
-            Contact name
-            <input value={contactName} onChange={(e) => setContactName(e.target.value)} list="contact-names" placeholder="Who is this link for?" />
-            <datalist id="contact-names">
-              {picked?.contacts.filter((c) => c.name).map((c) => <option key={c.name + c.email} value={c.name} />)}
-            </datalist>
-          </label>
-          <label>
-            Contact email (optional)
-            <input type="email" value={contactEmail} onChange={(e) => setContactEmail(e.target.value)} list="contact-emails" placeholder="name@company.com.au" />
-            <datalist id="contact-emails">
-              {picked?.contacts.filter((c) => c.email).map((c) => <option key={c.email} value={c.email} />)}
-            </datalist>
-          </label>
-          <label>
             Link works for
             <select value={days} onChange={(e) => setDays(Number(e.target.value))} className="short-select">
               <option value={7}>7 days</option>
@@ -175,7 +154,7 @@ export default function ConfirmationsView({ customers, ostendoError, today }: { 
               <option value={30}>30 days</option>
             </select>
           </label>
-          <button type="button" onClick={create} disabled={!customer || !contactName.trim() || creating}>
+          <button type="button" onClick={create} disabled={!customer || creating}>
             {creating ? 'Making link...' : 'Make link'}
           </button>
         </div>
@@ -184,7 +163,7 @@ export default function ConfirmationsView({ customers, ostendoError, today }: { 
         {created && (
           <div className="created">
             <p>
-              <strong>Link ready for {created.contactName}</strong> at {created.customer}, with {created.orders.length} order
+              <strong>Link ready for {created.customer}</strong>, with {created.orders.length} order
               {created.orders.length === 1 ? '' : 's'}. It expires on {day(created.expiresAt)}.
             </p>
             <div className="link-box">
@@ -192,16 +171,14 @@ export default function ConfirmationsView({ customers, ostendoError, today }: { 
             </div>
             <div className="row">
               <CopyButton token={created.token} />
-              {created.contactEmail && (
-                <a className="button-link small-link" href={mailto(created)}>
-                  Write the email
-                </a>
-              )}
+              <a className="button-link small-link" href={mailto(created)}>
+                Write the email
+              </a>
               <a className="button-link secondary-link small-link" href={`/confirm/${created.token}`} target="_blank" rel="noreferrer">
                 Preview what they see
               </a>
             </div>
-            <p className="muted small">Nothing is sent automatically. Paste the link into your own email to {created.contactName}.</p>
+            <p className="muted small">Nothing is sent automatically. Paste the link into your own email to the customer.</p>
           </div>
         )}
       </div>
@@ -226,7 +203,7 @@ export default function ConfirmationsView({ customers, ostendoError, today }: { 
             <thead>
               <tr>
                 <th>Customer</th>
-                <th>Contact</th>
+                <th>Answered by</th>
                 <th>Sent</th>
                 <th>Expires</th>
                 <th>Status</th>
@@ -239,7 +216,7 @@ export default function ConfirmationsView({ customers, ostendoError, today }: { 
               {shown.map((l) => (
                 <tr key={l.token} className="clickable" onClick={() => setOpen(l.token)} tabIndex={0} onKeyDown={(e) => e.key === 'Enter' && setOpen(l.token)}>
                   <td className="ordno">{l.customer}</td>
-                  <td>{l.contactName}</td>
+                  <td>{l.submittedBy ?? ''}</td>
                   <td>{day(l.createdAt)}</td>
                   <td>{day(l.expiresAt)}</td>
                   <td><StatusPill s={l.status} /></td>
@@ -318,8 +295,7 @@ function LinkDrawer({ token, today, onClose, onChanged }: { token: string; today
             <h2>{link?.customer ?? 'Loading...'}</h2>
             {link && (
               <p className="muted small">
-                For {link.contactName}
-                {link.contactEmail && ` (${link.contactEmail})`} · sent {when(link.createdAt)} · expires {day(link.expiresAt)}
+                Sent {when(link.createdAt)} · expires {day(link.expiresAt)}
               </p>
             )}
           </div>
@@ -374,11 +350,9 @@ function LinkDrawer({ token, today, onClose, onChanged }: { token: string; today
               {link.status === 'waiting' && (
                 <>
                   <CopyButton token={link.token} />
-                  {link.contactEmail && (
-                    <a className="button-link secondary-link small-link" href={mailto(link)}>
-                      Write the email again
-                    </a>
-                  )}
+                  <a className="button-link secondary-link small-link" href={mailto(link)}>
+                    Write the email again
+                  </a>
                   <a className="button-link secondary-link small-link" href={`/confirm/${link.token}`} target="_blank" rel="noreferrer">
                     Preview
                   </a>

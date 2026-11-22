@@ -30,16 +30,11 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   if (!storeConfigured()) return NextResponse.json({ error: NOT_SET_UP }, { status: 503, headers });
   const body = (await req.json().catch(() => null)) as
-    | { customer?: string; contactName?: string; contactEmail?: string; days?: number }
+    | { customer?: string; days?: number }
     | null;
   const customer = body?.customer?.trim() ?? '';
-  const contactName = body?.contactName?.trim().slice(0, 120) ?? '';
-  const contactEmail = body?.contactEmail?.trim().slice(0, 200) ?? '';
   const days = [7, 14, 21, 30].includes(Number(body?.days)) ? Number(body?.days) : 14;
   if (!customer) return NextResponse.json({ error: 'Choose a customer' }, { status: 400, headers });
-  if (!contactName) return NextResponse.json({ error: "Enter the customer contact's name" }, { status: 400, headers });
-  if (contactEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contactEmail))
-    return NextResponse.json({ error: "That email address doesn't look right" }, { status: 400, headers });
 
   let orders: ConfirmOrder[];
   try {
@@ -70,8 +65,9 @@ export async function POST(req: NextRequest) {
   const link: StoredLink = {
     token: newToken(),
     customer,
-    contactName,
-    contactEmail,
+    // No contact is recorded: the customer types their own name when they submit.
+    contactName: '',
+    contactEmail: '',
     createdAt: now.toISOString(),
     expiresAt: new Date(now.getTime() + days * 86_400_000).toISOString(),
     cancelled: false,

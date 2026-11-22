@@ -44,7 +44,7 @@ to the browser's local storage.
 This branch is a separate copy of the app, deployed to its own Vercel project, that adds customer delivery-date confirmations.
 The live Weekly Follow-Up app is untouched.
 
-- Staff page `/confirmations`: pick a customer with In-progress orders, enter one contact, and make a private link
+- Staff page `/confirmations`: pick a customer with In-progress orders and make a private link (no contact details; the customer types their name when they submit)
   (unguessable, expires after 7 to 30 days). Nothing is emailed automatically.
 - Customer page `/confirm/<token>`: their In-progress orders as they were when the link was made (PO, description, items,
   delivery date, no prices). Each order: date is correct, new date (weekdays only, at least 3 business days out), or date unknown with a note.
