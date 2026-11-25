@@ -257,3 +257,4 @@ td.note-col, th.note-col { min-width: 240px; }
 .pill.yellow { background: var(--amber); color: #7a5300; }
 .pick-foot { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding-top: 14px; }
 @media (max-width: 860px) { .overlay.center { padding: 0; } .dialog { border-radius: 0; height: 100%; } }
+.pill.blue { background: #eef4ff; color: #1d3a6b; margin-top: 3px; }

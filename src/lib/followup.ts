@@ -21,6 +21,10 @@ export interface FollowUpRow {
   required: string | null;
   /** ORIGINALORDERAMOUNT: the order total excluding GST. */
   valueExGst: number | null;
+  /** ORIGINALTOTALAMOUNT: the order total including GST. */
+  totalIncGst: number | null;
+  /** INVOICEDTOTALAMOUNT: delivered (invoiced) so far, including GST. Shown as "Total Delivered". */
+  delivered: number | null;
   /** Quotes only: QUOTEFOLLOWUPREQDATE, the follow-up date set in Ostendo. Used for the quotes calendar. */
   followUpDate: string | null;
   /** Quotes only: QUOTEEXPIRY. */
@@ -86,6 +90,7 @@ function buildDetails(r: OstendoRow, kind: ListKind): [string, string][] {
   } else {
     d.push(
       ['Converted from quote on', dateText(r.QUOTECONVERTDATE)],
+      ['Total delivered', num(r.INVOICEDTOTALAMOUNT) ? moneyText(r.INVOICEDTOTALAMOUNT) : ''],
       ['Invoiced so far ex GST', num(r.INVOICEDNETTAMOUNT) ? moneyText(r.INVOICEDNETTAMOUNT) : ''],
       ['Workflow status', cell(r.WORKFLOWSTATUS)],
     );
@@ -113,6 +118,8 @@ function mapRow(r: OstendoRow, kind: ListKind): FollowUpRow {
     entered: parseOstendoDate(cell(r.ORDERDATE)),
     required: parseOstendoDate(cell(r.REQUIREDDATE)),
     valueExGst: num(r.ORIGINALORDERAMOUNT),
+    totalIncGst: num(r.ORIGINALTOTALAMOUNT),
+    delivered: kind === 'quote' ? null : num(r.INVOICEDTOTALAMOUNT),
   };
 }
 
@@ -133,4 +140,4 @@ async function load(): Promise<FollowUpData> {
 }
 
 /** Cached for 1 hour so Ostendo is read at most a few times an hour, whoever opens the page. */
-export const getFollowUpData = unstable_cache(load, ['jobheader-followup-v5'], { revalidate: 3600, tags: ['followup'] });
+export const getFollowUpData = unstable_cache(load, ['jobheader-followup-v6'], { revalidate: 3600, tags: ['followup'] });

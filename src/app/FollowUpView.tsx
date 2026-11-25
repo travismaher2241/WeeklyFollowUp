@@ -27,6 +27,26 @@ function Value({ v }: { v: number | null }) {
   return <td className="num">{v === null ? '' : money.format(v)}</td>;
 }
 
+/** Some, but not all, of the order has been delivered (invoiced). Compared inc GST with inc GST. */
+function partDelivered(r: FollowUpRow): boolean {
+  return !!r.delivered && r.delivered > 0 && (r.totalIncGst === null || r.delivered < r.totalIncGst - 0.01);
+}
+
+function Delivered({ r }: { r: FollowUpRow }) {
+  return (
+    <td className="num">
+      {r.delivered ? money.format(r.delivered) : <span className="muted">{money.format(0)}</span>}
+      {partDelivered(r) && (
+        <div>
+          <span className="pill blue" title="Some of this order has been delivered. The rest is still to go.">
+            Part delivered
+          </span>
+        </div>
+      )}
+    </td>
+  );
+}
+
 /** The date each list puts on its calendar. */
 function calendarDate(r: FollowUpRow): string | null {
   return r.kind === 'quote' ? r.followUpDate : r.required;
@@ -266,7 +286,8 @@ export default function FollowUpView({ data, today }: { data: FollowUpData; toda
                   <th>Description</th>
                   <th>Entered</th>
                   <th>Required</th>
-                  <th className="num">Value ex GST</th>
+                  <th className="num">Order Total</th>
+                  <th className="num">Total Delivered</th>
                   <th>Flag</th>
                 </tr>
               </thead>
@@ -288,10 +309,11 @@ export default function FollowUpView({ data, today }: { data: FollowUpData; toda
                     <td>{showDate(r.entered)}</td>
                     <td>{showDate(r.required) || <span className="muted">Not set</span>}</td>
                     <Value v={r.valueExGst} />
+                    <Delivered r={r} />
                     <td>{flag && <span className="pill red">{FOLLOW_UP_LABEL}</span>}</td>
                   </tr>
                 ))}
-                {open.length === 0 && <Empty cols={9} />}
+                {open.length === 0 && <Empty cols={10} />}
               </tbody>
             </table>
           </div>
@@ -322,7 +344,8 @@ export default function FollowUpView({ data, today }: { data: FollowUpData; toda
                   <th>Description</th>
                   <th>Entered</th>
                   <th>Required</th>
-                  <th className="num">Value ex GST</th>
+                  <th className="num">Order Total</th>
+                  <th className="num">Total Delivered</th>
                 </tr>
               </thead>
               <tbody>
@@ -343,9 +366,10 @@ export default function FollowUpView({ data, today }: { data: FollowUpData; toda
                     <td>{showDate(r.entered)}</td>
                     <td>{showDate(r.required) || <span className="muted">Not set</span>}</td>
                     <Value v={r.valueExGst} />
+                    <Delivered r={r} />
                   </tr>
                 ))}
-                {inProgress.length === 0 && <Empty cols={8} />}
+                {inProgress.length === 0 && <Empty cols={9} />}
               </tbody>
             </table>
           </div>
@@ -420,7 +444,8 @@ export default function FollowUpView({ data, today }: { data: FollowUpData; toda
                   <th>Description</th>
                   <th>Status</th>
                   <th>Required</th>
-                  <th className="num">Value ex GST</th>
+                  <th className="num">Order Total</th>
+                  <th className="num">Total Delivered</th>
                   <th className="note-col">Meeting notes</th>
                   <th />
                 </tr>
@@ -435,6 +460,7 @@ export default function FollowUpView({ data, today }: { data: FollowUpData; toda
                     <td>{TAB_LABEL[r.kind]}</td>
                     <td>{showDate(r.required) || <span className="muted">Not set</span>}</td>
                     <Value v={r.valueExGst} />
+                    <Delivered r={r} />
                     <td className="note-col">
                       <textarea
                         className="note-box"
@@ -454,7 +480,7 @@ export default function FollowUpView({ data, today }: { data: FollowUpData; toda
                 {!customer && !salesperson && goneNotes.map((n) => (
                   <tr key={`gone-${n.number}`} className="gone">
                     <td className="ordno">{n.number}</td>
-                    <td colSpan={6} className="muted">No longer open or in progress in Ostendo.</td>
+                    <td colSpan={7} className="muted">No longer open or in progress in Ostendo.</td>
                     <td className="note-col">
                       <textarea className="note-box" rows={2} value={n.note} onChange={(e) => meeting.setNote(n.number, e.target.value)} />
                     </td>
@@ -467,7 +493,7 @@ export default function FollowUpView({ data, today }: { data: FollowUpData; toda
                 ))}
                 {meetingRows.length === 0 && (customer || salesperson || goneNotes.length === 0) && (
                   <tr>
-                    <td colSpan={9} className="muted">
+                    <td colSpan={10} className="muted">
                       {meetingCount === 0 ? 'No orders picked yet. Tick orders on the Open or In progress tabs.' : 'No picked orders match the filters.'}
                     </td>
                   </tr>
@@ -815,7 +841,10 @@ function PickOrders({ customer, rows, today, onClose }: { customer: string; rows
                     <td>{r.number}</td>
                     <td>{r.po}</td>
                     <td className="wrap">{r.description}</td>
-                    <td>{TAB_LABEL[r.kind]}</td>
+                    <td>
+                      {TAB_LABEL[r.kind]}
+                      {partDelivered(r) && <span className="pill blue" style={{ marginLeft: 6 }}>Part delivered</span>}
+                    </td>
                     <td>{r.required ? <span className={colour ? `pill ${colour}` : ''}>{showDate(r.required)}</span> : <span className="muted">Not set</span>}</td>
                   </tr>
                 );
