@@ -303,8 +303,8 @@ export default function FollowUpView({ data, today }: { data: FollowUpData; toda
                       />
                     </td>
                     <td className="ordno">{r.number}</td>
-                    <td>{r.customer}</td>
-                    <td>{r.po}</td>
+                    <td className="cust">{r.customer}</td>
+                    <td className="po">{r.po}</td>
                     <td className="desc">{r.description}</td>
                     <td>{showDate(r.entered)}</td>
                     <td>{showDate(r.required) || <span className="muted">Not set</span>}</td>
@@ -360,8 +360,8 @@ export default function FollowUpView({ data, today }: { data: FollowUpData; toda
                       />
                     </td>
                     <td className="ordno">{r.number}</td>
-                    <td>{r.customer}</td>
-                    <td>{r.po}</td>
+                    <td className="cust">{r.customer}</td>
+                    <td className="po">{r.po}</td>
                     <td className="desc">{r.description}</td>
                     <td>{showDate(r.entered)}</td>
                     <td>{showDate(r.required) || <span className="muted">Not set</span>}</td>
@@ -402,7 +402,7 @@ export default function FollowUpView({ data, today }: { data: FollowUpData; toda
                 {quotes.map(({ r, flag }) => (
                   <tr key={r.id} className="clickable" {...rowProps(r)}>
                     <td className="ordno">{r.number}</td>
-                    <td>{r.customer}</td>
+                    <td className="cust">{r.customer}</td>
                     <td className="desc">{r.description}</td>
                     <td>{showDate(r.entered)}</td>
                     <td className="num">{r.entered ? `${daysBetween(r.entered, today)} days` : ''}</td>
@@ -454,8 +454,8 @@ export default function FollowUpView({ data, today }: { data: FollowUpData; toda
                 {meetingRows.map((r) => (
                   <tr key={r.id} className={`${inProgressColour(r.required, today) === 'red' || openOrderFlag(r.required, today) ? 'row-red' : ''}`}>
                     <td className="ordno clickable-cell" onClick={() => setSelected(r)}>{r.number}</td>
-                    <td>{r.customer}</td>
-                    <td>{r.po}</td>
+                    <td className="cust">{r.customer}</td>
+                    <td className="po">{r.po}</td>
                     <td className="desc">{r.description}</td>
                     <td>{TAB_LABEL[r.kind]}</td>
                     <td>{showDate(r.required) || <span className="muted">Not set</span>}</td>

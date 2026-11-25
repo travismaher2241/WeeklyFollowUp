@@ -258,3 +258,20 @@ td.note-col, th.note-col { min-width: 240px; }
 .pick-foot { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding-top: 14px; }
 @media (max-width: 860px) { .overlay.center { padding: 0; } .dialog { border-radius: 0; height: 100%; } }
 .pill.blue { background: #eef4ff; color: #1d3a6b; margin-top: 3px; }
+
+/* Fit the order tables across the screen without sideways scrolling */
+th, td { padding: 9px 10px; }
+th { white-space: normal; }
+td.cust { white-space: normal; min-width: 140px; max-width: 220px; }
+td.po { white-space: normal; overflow-wrap: anywhere; min-width: 80px; max-width: 150px; }
+td.desc { min-width: 200px; max-width: 360px; }
+th.num { text-align: right; }
+td .pill.blue { font-size: 11px; padding: 0 6px; }
+@media (max-width: 1400px) {
+  table { font-size: 13px; }
+  th, td { padding: 8px 7px; }
+  th.pick, td.pick { width: 52px; }
+  td.cust { min-width: 110px; }
+  td.desc { min-width: 150px; }
+  td.po { min-width: 70px; max-width: 120px; }
+}
