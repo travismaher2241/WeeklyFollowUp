@@ -27,9 +27,9 @@ function Value({ v }: { v: number | null }) {
   return <td className="num">{v === null ? '' : money.format(v)}</td>;
 }
 
-/** Some, but not all, of the order has been delivered (invoiced). Compared inc GST with inc GST. */
+/** Some, but not all, of the order has been delivered (invoiced). Both figures are ex GST. */
 function partDelivered(r: FollowUpRow): boolean {
-  return !!r.delivered && r.delivered > 0 && (r.totalIncGst === null || r.delivered < r.totalIncGst - 0.01);
+  return !!r.delivered && r.delivered > 0 && (r.valueExGst === null || r.delivered < r.valueExGst - 0.01);
 }
 
 function Delivered({ r }: { r: FollowUpRow }) {
