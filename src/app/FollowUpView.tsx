@@ -41,6 +41,7 @@ export default function FollowUpView({ data, today }: { data: FollowUpData; toda
   const [selected, setSelected] = useState<FollowUpRow | null>(null);
   const meeting = useMeetingNotes();
   const [confirmClear, setConfirmClear] = useState(false);
+  const [picking, setPicking] = useState(false);
   const isOrder = (r: FollowUpRow) => r.kind === 'open' || r.kind === 'inprogress';
   // Which rows belong to the current tab. The Meeting tab holds the orders picked for the review meeting.
   const inView = (r: FollowUpRow) => (tab === 'meeting' ? isOrder(r) && !!meeting.notes[r.number] : r.kind === tab);
@@ -169,20 +170,25 @@ export default function FollowUpView({ data, today }: { data: FollowUpData; toda
       />
 
       <div className="side-section side-bottom">
-        <a
-          className={customer ? 'button-link' : 'button-link disabled'}
-          href={customer ? `/api/export?customer=${encodeURIComponent(customer)}${tab === 'quote' ? '&type=quotes' : ''}` : undefined}
-          aria-disabled={!customer}
-          title={
-            customer
-              ? tab === 'quote'
-                ? "Download this customer's outstanding quotes"
-                : "Download this customer's open and in-progress orders"
-              : 'Choose a customer first'
-          }
-        >
-          {tab === 'quote' ? 'Download quotes spreadsheet' : 'Download orders spreadsheet'}
-        </a>
+        {tab === 'quote' ? (
+          <a
+            className={customer ? 'button-link' : 'button-link disabled'}
+            href={customer ? `/api/export?customer=${encodeURIComponent(customer)}&type=quotes` : undefined}
+            aria-disabled={!customer}
+            title={customer ? "Download this customer's outstanding quotes" : 'Choose a customer first'}
+          >
+            Download quotes spreadsheet
+          </a>
+        ) : (
+          <button
+            className="side-download"
+            disabled={!customer}
+            onClick={() => setPicking(true)}
+            title={customer ? 'Choose which orders go in the spreadsheet' : 'Choose a customer first'}
+          >
+            Download orders spreadsheet
+          </button>
+        )}
         {!customer && <div className="side-hint">Choose a customer to download their {tab === 'quote' ? 'quotes' : 'orders'}.</div>}
       </div>
     </div>
@@ -198,6 +204,14 @@ export default function FollowUpView({ data, today }: { data: FollowUpData; toda
   return (
     <main>
       {slot && createPortal(sidebar, slot)}
+      {picking && customer && tab !== 'quote' && (
+        <PickOrders
+          customer={customer}
+          rows={data.rows.filter((r) => (r.kind === 'open' || r.kind === 'inprogress') && r.customer === customer)}
+          today={today}
+          onClose={() => setPicking(false)}
+        />
+      )}
       <header className="top">
         <div>
           <h1>Weekly Follow-Up</h1>
@@ -712,6 +726,113 @@ function OrderLines({ order, isQuote }: { order: string; isQuote: boolean }) {
         </table>
       )}
     </section>
+  );
+}
+
+/** Monday of the week containing a yyyy-mm-dd date. */
+function mondayOf(iso: string): string {
+  const wd = new Date(iso + 'T00:00:00Z').getUTCDay();
+  return addDays(iso, wd === 0 ? -6 : 1 - wd);
+}
+
+/** Choose which of a customer's orders go in the spreadsheet before downloading it. */
+function PickOrders({ customer, rows, today, onClose }: { customer: string; rows: FollowUpRow[]; today: string; onClose: () => void }) {
+  const sorted = useMemo(() => [...rows].sort((a, b) => (a.required ?? '9999').localeCompare(b.required ?? '9999')), [rows]);
+  const [chosen, setChosen] = useState<Set<string>>(() => new Set(rows.map((r) => r.id)));
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  // "Next week" starts next Monday. Weekend dates count with the week before, as on the calendar.
+  const nextMonday = addDays(mondayOf(today), 7);
+  const weeks = (n: number) => {
+    const end = addDays(nextMonday, 7 * n - 1);
+    setChosen(new Set(sorted.filter((r) => r.required && r.required >= nextMonday && r.required <= end).map((r) => r.id)));
+  };
+  const range = (n: number) => `${showDate(nextMonday).slice(0, 5)} to ${showDate(addDays(nextMonday, 7 * n - 3)).slice(0, 5)}`;
+  const toggle = (id: string) =>
+    setChosen((c) => {
+      const next = new Set(c);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  const ids = sorted.filter((r) => chosen.has(r.id)).map((r) => r.id);
+  const href = `/api/export?customer=${encodeURIComponent(customer)}&orders=${ids.map(encodeURIComponent).join(',')}`;
+
+  return (
+    <div className="overlay center" onClick={onClose}>
+      <div className="dialog" role="dialog" aria-label="Choose orders for the spreadsheet" onClick={(e) => e.stopPropagation()}>
+        <div className="drawer-head">
+          <div>
+            <div className="muted small">Orders spreadsheet</div>
+            <h2 style={{ margin: 0 }}>{customer}</h2>
+          </div>
+          <button className="secondary" onClick={onClose}>
+            Cancel
+          </button>
+        </div>
+        <div className="pick-quick">
+          <span className="muted small">Tick:</span>
+          <button className="secondary small-btn" onClick={() => weeks(1)} title={range(1)}>
+            Next week ({range(1)})
+          </button>
+          <button className="secondary small-btn" onClick={() => weeks(2)} title={range(2)}>
+            Next 2 weeks
+          </button>
+          <button className="secondary small-btn" onClick={() => weeks(3)} title={range(3)}>
+            Next 3 weeks
+          </button>
+          <button className="secondary small-btn" onClick={() => setChosen(new Set(sorted.map((r) => r.id)))}>
+            All
+          </button>
+          <button className="secondary small-btn" onClick={() => setChosen(new Set())}>
+            None
+          </button>
+        </div>
+        <div className="pick-list">
+          <table>
+            <thead>
+              <tr>
+                <th />
+                <th>Order</th>
+                <th>Purchase order</th>
+                <th>Description</th>
+                <th>Status</th>
+                <th>Required</th>
+              </tr>
+            </thead>
+            <tbody>
+              {sorted.map((r) => {
+                const colour = r.kind === 'inprogress' ? inProgressColour(r.required, today) : null;
+                return (
+                  <tr key={r.id} className={chosen.has(r.id) ? 'picked' : ''} onClick={() => toggle(r.id)}>
+                    <td>
+                      <input type="checkbox" checked={chosen.has(r.id)} onChange={() => toggle(r.id)} onClick={(e) => e.stopPropagation()} aria-label={`Include ${r.number}`} />
+                    </td>
+                    <td>{r.number}</td>
+                    <td>{r.po}</td>
+                    <td className="wrap">{r.description}</td>
+                    <td>{TAB_LABEL[r.kind]}</td>
+                    <td>{r.required ? <span className={colour ? `pill ${colour}` : ''}>{showDate(r.required)}</span> : <span className="muted">Not set</span>}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+        <div className="pick-foot">
+          <span className="muted small">
+            {ids.length} of {sorted.length} orders ticked
+          </span>
+          <a className={ids.length ? 'button-link' : 'button-link disabled'} href={ids.length ? href : undefined} aria-disabled={!ids.length} onClick={() => ids.length && setTimeout(onClose, 300)}>
+            Download spreadsheet
+          </a>
+        </div>
+      </div>
+    </div>
   );
 }
 

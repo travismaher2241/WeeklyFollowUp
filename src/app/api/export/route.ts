@@ -27,8 +27,12 @@ export async function GET(req: NextRequest) {
   }
 
   const quotes = req.nextUrl.searchParams.get('type') === 'quotes';
+  // Optional list of chosen orders (row ids). Without it, every order for the customer is included.
+  const picked = req.nextUrl.searchParams.get('orders');
+  const only = picked === null ? null : new Set(picked.split(',').map((s) => s.trim()).filter(Boolean));
   const rows = data.rows
     .filter((r) => (quotes ? r.kind === 'quote' : r.kind === 'open' || r.kind === 'inprogress') && r.customer === customer)
+    .filter((r) => quotes || !only || only.has(r.id))
     .sort((a, b) =>
       quotes
         ? (a.entered ?? '9999').localeCompare(b.entered ?? '9999')
