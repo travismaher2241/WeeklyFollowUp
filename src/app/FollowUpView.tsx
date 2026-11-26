@@ -823,10 +823,10 @@ function PickOrders({ customer, rows, today, onClose }: { customer: string; rows
           </button>
         </div>
         <div className="pick-list">
-          <table>
+          <table className={all ? 'pick-table all' : 'pick-table'}>
             <thead>
               <tr>
-                <th />
+                <th className="c-tick" />
                 <th>Order</th>
                 {all && <th>Customer</th>}
                 <th>Purchase order</th>
@@ -849,7 +849,7 @@ function PickOrders({ customer, rows, today, onClose }: { customer: string; rows
                     <td className="wrap">{r.description}</td>
                     <td>
                       {TAB_LABEL[r.kind]}
-                      {partDelivered(r) && <span className="pill blue" style={{ marginLeft: 6 }}>Part delivered</span>}
+                      {partDelivered(r) && <div><span className="pill blue">Part delivered</span></div>}
                     </td>
                     <td>{r.required ? <span className={colour ? `pill ${colour}` : ''}>{showDate(r.required)}</span> : <span className="muted">Not set</span>}</td>
                   </tr>
