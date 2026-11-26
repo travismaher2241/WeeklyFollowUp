@@ -28,11 +28,14 @@ export async function GET(req: NextRequest) {
   }
 
   const quotes = req.nextUrl.searchParams.get('type') === 'quotes';
+  // Which orders: status=open, status=inprogress, or both (status=all or missing). Quotes are always separate.
+  const status = req.nextUrl.searchParams.get('status');
+  const wantKind = (k: string) => (status === 'open' || status === 'inprogress' ? k === status : k === 'open' || k === 'inprogress');
   // Optional list of chosen orders (row ids). Without it, every order for the customer is included.
   const picked = req.nextUrl.searchParams.get('orders');
   const only = picked === null ? null : new Set(picked.split(',').map((s) => s.trim()).filter(Boolean));
   const rows = data.rows
-    .filter((r) => (quotes ? r.kind === 'quote' : r.kind === 'open' || r.kind === 'inprogress') && (all || r.customer === customer))
+    .filter((r) => (quotes ? r.kind === 'quote' : wantKind(r.kind)) && (all || r.customer === customer))
     .filter((r) => quotes || !only || only.has(r.id))
     .sort((a, b) =>
       (all ? a.customer.localeCompare(b.customer) : 0) ||
@@ -49,7 +52,9 @@ export async function GET(req: NextRequest) {
     : [{ width: 22 }, { width: 60 }, { width: 22 }, { width: 22 }, { width: 50 }];
   ws.columns = all ? [{ width: 36 }, ...cols] : cols;
 
-  ws.getCell('A1').value = all ? (quotes ? 'All customers: outstanding quotes' : 'All customers: open and in-progress orders') : customer;
+  ws.getCell('A1').value = all ? (quotes
+        ? 'All customers: outstanding quotes'
+        : `All customers: ${status === 'open' ? 'open' : status === 'inprogress' ? 'in-progress' : 'open and in-progress'} orders`) : customer;
   ws.getCell('A1').font = { bold: true, size: 14 };
 
   const header = ws.getRow(3);
@@ -91,11 +96,11 @@ export async function GET(req: NextRequest) {
     });
   });
   if (rows.length === 0)
-    ws.getCell('A4').value = quotes ? 'No outstanding quotes.' : 'No open or in-progress orders.';
+    ws.getCell('A4').value = quotes ? 'No outstanding quotes.' : 'No orders to list.';
 
   const buf = await wb.xlsx.writeBuffer();
   const safe = all ? 'All customers' : customer.replace(/[^\w\s.&-]/g, '').trim().slice(0, 60) || 'customer';
-  const filename = `${safe} - ${quotes ? 'quotes' : 'orders'} - ${showDate(todayMelbourne()).replace(/\//g, '-')}.xlsx`;
+  const filename = `${safe} - ${quotes ? 'quotes' : status === 'open' ? 'open orders' : status === 'inprogress' ? 'in-progress orders' : 'orders'} - ${showDate(todayMelbourne()).replace(/\//g, '-')}.xlsx`;
   return new NextResponse(buf as ArrayBuffer, {
     headers: {
       'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',

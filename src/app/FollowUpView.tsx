@@ -16,8 +16,8 @@ import {
 } from '@/lib/rules';
 
 const money = new Intl.NumberFormat('en-AU', { style: 'currency', currency: 'AUD', maximumFractionDigits: 0 });
-type View = ListKind | 'meeting';
-const TAB_LABEL: Record<View, string> = { open: 'Open', inprogress: 'In progress', quote: 'Quotes', meeting: 'Meeting' };
+type View = ListKind | 'all' | 'meeting';
+const TAB_LABEL: Record<View, string> = { open: 'Open', inprogress: 'In progress', all: 'All orders', quote: 'Quotes', meeting: 'Meeting' };
 
 function byDate(get: (r: FollowUpRow) => string | null) {
   return (a: FollowUpRow, b: FollowUpRow) => (get(a) ?? '9999').localeCompare(get(b) ?? '9999');
@@ -64,7 +64,9 @@ export default function FollowUpView({ data, today }: { data: FollowUpData; toda
   const [picking, setPicking] = useState(false);
   const isOrder = (r: FollowUpRow) => r.kind === 'open' || r.kind === 'inprogress';
   // Which rows belong to the current tab. The Meeting tab holds the orders picked for the review meeting.
-  const inView = (r: FollowUpRow) => (tab === 'meeting' ? isOrder(r) && !!meeting.notes[r.number] : r.kind === tab);
+  // The All orders tab holds Open and InProgress together. Quotes are always separate.
+  const inView = (r: FollowUpRow) =>
+    tab === 'meeting' ? isOrder(r) && !!meeting.notes[r.number] : tab === 'all' ? isOrder(r) : r.kind === tab;
 
   // Only customers that appear in the current tab (and salesperson, if one is chosen).
   // The chosen customer stays in the list so switching tabs never loses the selection.
@@ -97,6 +99,16 @@ export default function FollowUpView({ data, today }: { data: FollowUpData; toda
     .filter((x) => !flaggedOnly || x.colour)
     .sort((a, b) => byDate((r) => r.required)(a.r, b.r));
 
+  const allOrders = shown
+    .filter(isOrder)
+    .map((r) => ({
+      r,
+      flag: r.kind === 'open' ? openOrderFlag(r.required, today) : null,
+      colour: r.kind === 'inprogress' ? inProgressColour(r.required, today) : null,
+    }))
+    .filter((x) => !flaggedOnly || x.flag || x.colour)
+    .sort((a, b) => byDate((r) => r.required)(a.r, b.r));
+
   const quotes = shown
     .filter((r) => r.kind === 'quote')
     .map((r) => ({ r, flag: quoteFlag(r.entered, today) }))
@@ -114,6 +126,7 @@ export default function FollowUpView({ data, today }: { data: FollowUpData; toda
   const tabs: [View, number, number][] = [
     ['open', open.length, open.filter((x) => x.flag).length],
     ['inprogress', inProgress.length, inProgress.filter((x) => x.colour).length],
+    ['all', allOrders.length, allOrders.filter((x) => x.flag || x.colour).length],
     ['quote', quotes.length, quotes.filter((x) => x.flag === 'follow-up').length],
     ['meeting', meetingCount, 0],
   ];
@@ -204,10 +217,13 @@ export default function FollowUpView({ data, today }: { data: FollowUpData; toda
             onClick={() => setPicking(true)}
             title="Choose which orders go in the spreadsheet"
           >
-            {customer ? 'Download orders spreadsheet' : 'Download all orders'}
+            {tab === 'open' ? 'Download open orders' : tab === 'inprogress' ? 'Download in-progress orders' : 'Download all orders'}
           </button>
         )}
-        {!customer && <div className="side-hint">Full list for every customer. Choose a customer for just theirs.</div>}
+        <div className="side-hint">
+          {tab === 'quote' ? 'Quotes' : tab === 'open' ? 'Open orders only' : tab === 'inprogress' ? 'In-progress orders only' : 'Open and in-progress orders'}
+          {customer ? ` for ${customer}.` : ' for every customer. Choose a customer for just theirs.'}
+        </div>
       </div>
     </div>
   );
@@ -225,7 +241,11 @@ export default function FollowUpView({ data, today }: { data: FollowUpData; toda
       {picking && tab !== 'quote' && (
         <PickOrders
           customer={customer}
-          rows={data.rows.filter((r) => (r.kind === 'open' || r.kind === 'inprogress') && (!customer || r.customer === customer))}
+          rows={data.rows.filter(
+            (r) =>
+              (tab === 'open' || tab === 'inprogress' ? r.kind === tab : isOrder(r)) && (!customer || r.customer === customer),
+          )}
+          kinds={tab === 'open' || tab === 'inprogress' ? tab : 'all'}
           today={today}
           onClose={() => setPicking(false)}
         />
@@ -368,6 +388,63 @@ export default function FollowUpView({ data, today }: { data: FollowUpData; toda
                   </tr>
                 ))}
                 {inProgress.length === 0 && <Empty cols={9} />}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
+
+      {tab === 'all' && (
+        <section>
+          <h2>
+            All orders{' '}
+            <span className="muted small">
+              Open and in progress together. {allOrders.filter((x) => x.flag || x.colour === 'red').length} overdue
+            </span>
+          </h2>
+          <p className="legend">
+            <span className="swatch red" /> Required date has passed <span className="swatch yellow" /> In progress, due
+            within 2 weeks
+          </p>
+          <div className="scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th className="pick" title="Tick to add to the review meeting">Meeting</th>
+                  <th>Order</th>
+                  <th>Customer</th>
+                  <th>Purchase order</th>
+                  <th>Description</th>
+                  <th>Status</th>
+                  <th>Required</th>
+                  <th className="num">Order Total</th>
+                  <th className="num">Total Delivered</th>
+                  <th>Flag</th>
+                </tr>
+              </thead>
+              <tbody>
+                {allOrders.map(({ r, flag, colour }) => (
+                  <tr key={r.id} className={`clickable${colour ? ` row-${colour}` : ''}${meeting.notes[r.number] ? ' picked' : ''}`} {...rowProps(r)}>
+                    <td className="pick" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
+                      <input
+                        type="checkbox"
+                        aria-label={`Add ${r.number} to the meeting`}
+                        checked={!!meeting.notes[r.number]}
+                        onChange={(e) => meeting.toggle(r.number, e.target.checked)}
+                      />
+                    </td>
+                    <td className="ordno">{r.number}</td>
+                    <td className="cust">{r.customer}</td>
+                    <td className="po">{r.po}</td>
+                    <td className="desc">{r.description}</td>
+                    <td>{TAB_LABEL[r.kind]}</td>
+                    <td>{showDate(r.required) || <span className="muted">Not set</span>}</td>
+                    <Value v={r.valueExGst} />
+                    <Delivered r={r} />
+                    <td>{flag && <span className="pill red">{FOLLOW_UP_LABEL}</span>}</td>
+                  </tr>
+                ))}
+                {allOrders.length === 0 && <Empty cols={10} />}
               </tbody>
             </table>
           </div>
@@ -760,7 +837,19 @@ function mondayOf(iso: string): string {
 }
 
 /** Choose which of a customer's orders go in the spreadsheet before downloading it. */
-function PickOrders({ customer, rows, today, onClose }: { customer: string; rows: FollowUpRow[]; today: string; onClose: () => void }) {
+function PickOrders({
+  customer,
+  rows,
+  today,
+  kinds,
+  onClose,
+}: {
+  customer: string;
+  rows: FollowUpRow[];
+  today: string;
+  kinds: 'open' | 'inprogress' | 'all';
+  onClose: () => void;
+}) {
   const all = !customer;
   const sorted = useMemo(
     () => [...rows].sort((a, b) => (all ? a.customer.localeCompare(b.customer) : 0) || (a.required ?? '9999').localeCompare(b.required ?? '9999')),
@@ -790,14 +879,14 @@ function PickOrders({ customer, rows, today, onClose }: { customer: string; rows
   const ids = sorted.filter((r) => chosen.has(r.id)).map((r) => r.id);
   // Everything ticked: send no list, so the link stays short even for the full list.
   const everything = ids.length === sorted.length;
-  const href = `/api/export?${customer ? `customer=${encodeURIComponent(customer)}&` : ''}${everything ? '' : `orders=${ids.map(encodeURIComponent).join(',')}`}`;
+  const href = `/api/export?status=${kinds}${customer ? `&customer=${encodeURIComponent(customer)}` : ''}${everything ? '' : `&orders=${ids.map(encodeURIComponent).join(',')}`}`;
 
   return (
     <div className="overlay center" onClick={onClose}>
       <div className="dialog" role="dialog" aria-label="Choose orders for the spreadsheet" onClick={(e) => e.stopPropagation()}>
         <div className="drawer-head">
           <div>
-            <div className="muted small">Orders spreadsheet</div>
+            <div className="muted small">{kinds === 'open' ? 'Open orders' : kinds === 'inprogress' ? 'In-progress orders' : 'Open and in-progress orders'} spreadsheet</div>
             <h2 style={{ margin: 0 }}>{customer || 'All customers'}</h2>
           </div>
           <button className="secondary" onClick={onClose}>

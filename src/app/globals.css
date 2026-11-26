@@ -294,3 +294,9 @@ td .pill.blue { font-size: 11px; padding: 0 6px; }
 .pick-table.all th:nth-child(7) { width: 12%; }
 .pick-table td .pill { white-space: nowrap; }
 @media (max-width: 600px) { .pick-table th, .pick-table td { padding: 6px 3px; font-size: 11.5px; } .pick-table th.c-tick { width: 26px; } .dialog { padding: 14px 10px; } }
+
+/* Keep the tabs top right with five tabs: the title side wraps its text instead */
+.top > div:first-child { min-width: 0; flex: 1 1 auto; }
+.tabs { flex: 0 0 auto; }
+.tab { padding: 7px 12px; }
+@media (min-width: 1000px) { .top { flex-wrap: nowrap; } }
