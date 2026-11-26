@@ -170,8 +170,12 @@ export async function GET(req: NextRequest) {
     ws.getCell(`A${headRow + 1}`).value = quotes ? 'No outstanding quotes.' : 'No orders to list.';
 
   const buf = await wb.xlsx.writeBuffer();
-  const safe = all ? 'All customers' : customer.replace(/[^\w\s.&-]/g, '').trim().slice(0, 60) || 'customer';
-  const filename = `${safe} - ${quotes ? 'quotes' : status === 'open' ? 'open orders' : status === 'inprogress' ? 'in-progress orders' : 'orders'} - ${showDate(todayMelbourne()).replace(/\//g, '-')}.xlsx`;
+  // File names Trav chose (27/11/2026): "<Customer> - Delivery Confirmation <date>" for in-progress orders,
+  // "<Customer> - Upcoming Orders <date>" for open orders, "<Customer> - Quote follow up <date>" for quotes.
+  // The All orders tab uses "Delivery Confirmation"; with no customer chosen the name starts "All Customers".
+  const safe = all ? 'All Customers' : customer.replace(/[^\w\s.&-]/g, '').trim().slice(0, 60) || 'Customer';
+  const what = quotes ? 'Quote follow up' : status === 'open' ? 'Upcoming Orders' : 'Delivery Confirmation';
+  const filename = `${safe} - ${what} ${showDate(todayMelbourne()).replace(/\//g, '-')}.xlsx`;
   return new NextResponse(buf as ArrayBuffer, {
     headers: {
       'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
