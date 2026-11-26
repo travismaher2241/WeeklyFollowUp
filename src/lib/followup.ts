@@ -38,6 +38,12 @@ export interface FollowUpData {
   fetchedAt: string;
 }
 
+/**
+ * Only these job types are shown anywhere in the app (lists, calendar, meeting, spreadsheets).
+ * Spelt exactly as in Ostendo's JOBTYPE column, typos included ("PublicLigting", "SolarLIghting"). Trav, 26/11/2026.
+ */
+export const SHOWN_JOB_TYPES = new Set(['PublicLigting', 'AS3000', 'SolarLIghting', 'PlasSlab', 'PlasPole']);
+
 const STATUS_FOR: Record<ListKind, string> = { open: 'Open', inprogress: 'InProgress', quote: 'Quote' };
 
 function num(v: unknown): number | null {
@@ -129,6 +135,7 @@ async function load(): Promise<FollowUpData> {
     const { rows: raw } = await readOstendoTable('JOBHEADER', `ORDERSTATUS='${STATUS_FOR[kind]}'`);
     for (const r of raw) {
       if (cell(r.ORDERSTATUS) !== STATUS_FOR[kind]) continue; // belt and braces if the filter is ignored
+      if (!SHOWN_JOB_TYPES.has(cell(r.JOBTYPE))) continue;
       // Superseded quote revisions aren't the live quote, so leave them out.
       if (kind === 'quote' && cell(r.QUOTEREVISIONSTATUS) === 'Non Current') continue;
       rows.push(mapRow(r, kind));
@@ -139,4 +146,4 @@ async function load(): Promise<FollowUpData> {
 }
 
 /** Cached for 1 hour so Ostendo is read at most a few times an hour, whoever opens the page. */
-export const getFollowUpData = unstable_cache(load, ['jobheader-followup-v7'], { revalidate: 3600, tags: ['followup'] });
+export const getFollowUpData = unstable_cache(load, ['jobheader-followup-v8'], { revalidate: 3600, tags: ['followup'] });

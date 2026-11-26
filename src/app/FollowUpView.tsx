@@ -480,7 +480,7 @@ export default function FollowUpView({ data, today }: { data: FollowUpData; toda
                 {!customer && !salesperson && goneNotes.map((n) => (
                   <tr key={`gone-${n.number}`} className="gone">
                     <td className="ordno">{n.number}</td>
-                    <td colSpan={7} className="muted">No longer open or in progress in Ostendo.</td>
+                    <td colSpan={7} className="muted">No longer on the Open or In progress lists.</td>
                     <td className="note-col">
                       <textarea className="note-box" rows={2} value={n.note} onChange={(e) => meeting.setNote(n.number, e.target.value)} />
                     </td>
