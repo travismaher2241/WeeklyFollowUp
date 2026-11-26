@@ -46,32 +46,70 @@ export async function GET(req: NextRequest) {
 
   const wb = new ExcelJS.Workbook();
   wb.creator = 'Plasgain Weekly Follow-Up';
-  const ws = wb.addWorksheet(quotes ? 'Quotes' : 'Orders', { views: [{ state: 'frozen', ySplit: 3, showGridLines: true }] });
+  wb.calcProperties.fullCalcOnLoad = true;
+  // Orders have a "Confirm all" box above the table, so their header sits one row lower.
+  const headRow = quotes ? 3 : 5;
+  const ws = wb.addWorksheet(quotes ? 'Quotes' : 'Orders', { views: [{ state: 'frozen', ySplit: headRow, showGridLines: true }] });
+  // Prints on one page width, landscape.
+  ws.pageSetup = { orientation: 'landscape', fitToPage: true, fitToWidth: 1, fitToHeight: 0 };
   const cols = quotes
     ? [{ width: 16 }, { width: 60 }, { width: 14 }, { width: 14 }, { width: 16 }, { width: 50 }]
-    : [{ width: 22 }, { width: 60 }, { width: 22 }, { width: 22 }, { width: 50 }];
+    : [{ width: 18 }, { width: 55 }, { width: 22 }, { width: 14 }, { width: 24 }];
   ws.columns = all ? [{ width: 36 }, ...cols] : cols;
+  const o = all ? 1 : 0; // column offset when the Customer column is first
 
   ws.getCell('A1').value = all ? (quotes
         ? 'All customers: outstanding quotes'
         : `All customers: ${status === 'open' ? 'open' : status === 'inprogress' ? 'in-progress' : 'open and in-progress'} orders`) : customer;
   ws.getCell('A1').font = { bold: true, size: 14 };
 
-  const header = ws.getRow(3);
+  const green = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE6F6ED' } } as const;
+  const yellow = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFF4CC' } } as const;
+  const thin = { style: 'thin', color: { argb: 'FF8A9AA5' } } as const;
+  const confirmCol = 4 + o; // "Confirmed" (Yes/No)
+  const reviseCol = 5 + o; // "Revised Required Date"
+  const colLetter = (n: number) => String.fromCharCode(64 + n);
+
+  if (!quotes) {
+    // One box to confirm every line at once. Each line can still be changed on its own.
+    // The box sits right above the Confirmed column, labelled from the cell to its left.
+    const label = ws.getCell(2, confirmCol - 1);
+    label.value = 'Confirm all dates?';
+    label.font = { bold: true };
+    label.alignment = { horizontal: 'right', vertical: 'middle' };
+    const box = ws.getCell(2, confirmCol);
+    box.fill = yellow;
+    box.border = { top: thin, left: thin, bottom: thin, right: thin };
+    box.alignment = { horizontal: 'center', vertical: 'middle' };
+    box.dataValidation = {
+      type: 'list',
+      allowBlank: true,
+      formulae: ['"Yes,No"'],
+      showInputMessage: true,
+      promptTitle: 'Confirm all',
+      prompt: 'Choose Yes to confirm every date below.',
+    };
+    ws.getCell('A3').value =
+      'Choose Yes to confirm every date, or Yes / No on each line. If a date needs to change, type the new date (dd/mm/yyyy) under Revised Required Date.';
+    ws.getCell('A3').font = { italic: true, color: { argb: 'FF667085' } };
+  }
+
+  const header = ws.getRow(headRow);
   const heads = quotes
     ? ['Quote Number', 'Description', 'Quote Date', 'Expiry Date', 'Value ex GST', 'Notes']
-    : ['Purchase Order', 'Description', 'Current Required Date', 'Revised Required Date', 'Notes'];
+    : ['Purchase Order', 'Description', 'Current Required Date', 'Confirmed', 'Revised Required Date'];
   header.values = all ? ['Customer', ...heads] : heads;
-  const o = all ? 1 : 0; // column offset when the Customer column is first
   header.font = { bold: true };
   header.eachCell((c) => {
-    c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE6F6ED' } };
+    c.fill = green;
     c.border = { bottom: { style: 'thin', color: { argb: 'FF00A651' } } };
-    c.alignment = { vertical: 'middle' };
+    c.alignment = { vertical: 'middle', wrapText: true };
   });
 
+  const first = headRow + 1;
   rows.forEach((r, i) => {
-    const row = ws.getRow(4 + i);
+    const n = first + i;
+    const row = ws.getRow(n);
     const lead = all ? [r.customer] : [];
     if (quotes) {
       row.values = [
@@ -87,16 +125,49 @@ export async function GET(req: NextRequest) {
       row.getCell(4 + o).numFmt = 'dd/mm/yyyy';
       row.getCell(5 + o).numFmt = '$#,##0.00';
     } else {
-      row.values = [...lead, r.po, r.description, r.required ? excelDate(r.required) : 'Not set', null, null];
+      row.values = [...lead, r.po, r.description, r.required ? excelDate(r.required) : 'Not set'];
       row.getCell(3 + o).numFmt = 'dd/mm/yyyy';
-      row.getCell(4 + o).numFmt = 'dd/mm/yyyy';
+      const rev = `${colLetter(reviseCol)}${n}`;
+      // Yes when "Confirm all" is Yes; No as soon as a revised date is typed. Choosing Yes/No here overrides it.
+      const conf = row.getCell(confirmCol);
+      conf.value = { formula: `IF(${rev}<>"","No",IF($${colLetter(confirmCol)}$2="Yes","Yes",""))`, result: '' };
+      conf.dataValidation = { type: 'list', allowBlank: true, formulae: ['"Yes,No"'] };
+      conf.alignment = { horizontal: 'center', vertical: 'top' };
+      conf.border = { top: thin, left: thin, bottom: thin, right: thin };
+      const revise = row.getCell(reviseCol);
+      revise.numFmt = 'dd/mm/yyyy';
+      revise.border = { top: thin, left: thin, bottom: thin, right: thin };
+      revise.dataValidation = {
+        type: 'date',
+        operator: 'greaterThan',
+        allowBlank: true,
+        formulae: [new Date(Date.UTC(2020, 0, 1))],
+        showInputMessage: true,
+        promptTitle: 'New date',
+        prompt: 'Type the new delivery date as dd/mm/yyyy',
+        showErrorMessage: true,
+        errorTitle: 'Not a date',
+        error: 'Please type the date as dd/mm/yyyy, for example 15/12/2026.',
+      };
     }
     row.eachCell({ includeEmpty: true }, (c, col) => {
-      c.alignment = { vertical: 'top', wrapText: col === 2 + o || col === (quotes ? 6 : 5) + o || (all && col === 1) };
+      if (!quotes && (col === confirmCol)) return;
+      c.alignment = { vertical: 'top', wrapText: col === 2 + o || (quotes && col === 6 + o) || (all && col === 1) };
     });
   });
+  if (!quotes && rows.length) {
+    const last = first + rows.length - 1;
+    const c = colLetter(confirmCol);
+    ws.addConditionalFormatting({
+      ref: `${c}${first}:${c}${last}`,
+      rules: [
+        { type: 'cellIs', operator: 'equal', formulae: ['"Yes"'], priority: 1, style: { fill: { type: 'pattern', pattern: 'solid', bgColor: { argb: 'FFC6EFCE' } }, font: { color: { argb: 'FF006100' } } } },
+        { type: 'cellIs', operator: 'equal', formulae: ['"No"'], priority: 2, style: { fill: { type: 'pattern', pattern: 'solid', bgColor: { argb: 'FFFFEB9C' } }, font: { color: { argb: 'FF9C5700' } } } },
+      ],
+    });
+  }
   if (rows.length === 0)
-    ws.getCell('A4').value = quotes ? 'No outstanding quotes.' : 'No orders to list.';
+    ws.getCell(`A${headRow + 1}`).value = quotes ? 'No outstanding quotes.' : 'No orders to list.';
 
   const buf = await wb.xlsx.writeBuffer();
   const safe = all ? 'All customers' : customer.replace(/[^\w\s.&-]/g, '').trim().slice(0, 60) || 'customer';
