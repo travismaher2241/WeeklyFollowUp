@@ -192,24 +192,22 @@ export default function FollowUpView({ data, today }: { data: FollowUpData; toda
       <div className="side-section side-bottom">
         {tab === 'quote' ? (
           <a
-            className={customer ? 'button-link' : 'button-link disabled'}
-            href={customer ? `/api/export?customer=${encodeURIComponent(customer)}&type=quotes` : undefined}
-            aria-disabled={!customer}
-            title={customer ? "Download this customer's outstanding quotes" : 'Choose a customer first'}
+            className="button-link"
+            href={`/api/export?type=quotes${customer ? `&customer=${encodeURIComponent(customer)}` : ''}`}
+            title={customer ? "Download this customer's outstanding quotes" : 'Download every outstanding quote'}
           >
-            Download quotes spreadsheet
+            {customer ? 'Download quotes spreadsheet' : 'Download all quotes'}
           </a>
         ) : (
           <button
             className="side-download"
-            disabled={!customer}
             onClick={() => setPicking(true)}
-            title={customer ? 'Choose which orders go in the spreadsheet' : 'Choose a customer first'}
+            title="Choose which orders go in the spreadsheet"
           >
-            Download orders spreadsheet
+            {customer ? 'Download orders spreadsheet' : 'Download all orders'}
           </button>
         )}
-        {!customer && <div className="side-hint">Choose a customer to download their {tab === 'quote' ? 'quotes' : 'orders'}.</div>}
+        {!customer && <div className="side-hint">Full list for every customer. Choose a customer for just theirs.</div>}
       </div>
     </div>
   );
@@ -224,10 +222,10 @@ export default function FollowUpView({ data, today }: { data: FollowUpData; toda
   return (
     <main>
       {slot && createPortal(sidebar, slot)}
-      {picking && customer && tab !== 'quote' && (
+      {picking && tab !== 'quote' && (
         <PickOrders
           customer={customer}
-          rows={data.rows.filter((r) => (r.kind === 'open' || r.kind === 'inprogress') && r.customer === customer)}
+          rows={data.rows.filter((r) => (r.kind === 'open' || r.kind === 'inprogress') && (!customer || r.customer === customer))}
           today={today}
           onClose={() => setPicking(false)}
         />
@@ -763,7 +761,11 @@ function mondayOf(iso: string): string {
 
 /** Choose which of a customer's orders go in the spreadsheet before downloading it. */
 function PickOrders({ customer, rows, today, onClose }: { customer: string; rows: FollowUpRow[]; today: string; onClose: () => void }) {
-  const sorted = useMemo(() => [...rows].sort((a, b) => (a.required ?? '9999').localeCompare(b.required ?? '9999')), [rows]);
+  const all = !customer;
+  const sorted = useMemo(
+    () => [...rows].sort((a, b) => (all ? a.customer.localeCompare(b.customer) : 0) || (a.required ?? '9999').localeCompare(b.required ?? '9999')),
+    [rows, all],
+  );
   const [chosen, setChosen] = useState<Set<string>>(() => new Set(rows.map((r) => r.id)));
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
@@ -786,7 +788,9 @@ function PickOrders({ customer, rows, today, onClose }: { customer: string; rows
       return next;
     });
   const ids = sorted.filter((r) => chosen.has(r.id)).map((r) => r.id);
-  const href = `/api/export?customer=${encodeURIComponent(customer)}&orders=${ids.map(encodeURIComponent).join(',')}`;
+  // Everything ticked: send no list, so the link stays short even for the full list.
+  const everything = ids.length === sorted.length;
+  const href = `/api/export?${customer ? `customer=${encodeURIComponent(customer)}&` : ''}${everything ? '' : `orders=${ids.map(encodeURIComponent).join(',')}`}`;
 
   return (
     <div className="overlay center" onClick={onClose}>
@@ -794,7 +798,7 @@ function PickOrders({ customer, rows, today, onClose }: { customer: string; rows
         <div className="drawer-head">
           <div>
             <div className="muted small">Orders spreadsheet</div>
-            <h2 style={{ margin: 0 }}>{customer}</h2>
+            <h2 style={{ margin: 0 }}>{customer || 'All customers'}</h2>
           </div>
           <button className="secondary" onClick={onClose}>
             Cancel
@@ -824,6 +828,7 @@ function PickOrders({ customer, rows, today, onClose }: { customer: string; rows
               <tr>
                 <th />
                 <th>Order</th>
+                {all && <th>Customer</th>}
                 <th>Purchase order</th>
                 <th>Description</th>
                 <th>Status</th>
@@ -839,6 +844,7 @@ function PickOrders({ customer, rows, today, onClose }: { customer: string; rows
                       <input type="checkbox" checked={chosen.has(r.id)} onChange={() => toggle(r.id)} onClick={(e) => e.stopPropagation()} aria-label={`Include ${r.number}`} />
                     </td>
                     <td>{r.number}</td>
+                    {all && <td className="cust">{r.customer}</td>}
                     <td>{r.po}</td>
                     <td className="wrap">{r.description}</td>
                     <td>

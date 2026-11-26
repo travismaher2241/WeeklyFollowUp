@@ -15,8 +15,9 @@ function excelDate(iso: string): Date {
 }
 
 export async function GET(req: NextRequest) {
-  const customer = req.nextUrl.searchParams.get('customer')?.trim();
-  if (!customer) return NextResponse.json({ error: 'Choose a customer first' }, { status: 400 });
+  // No customer means the full list, with a Customer column on every row.
+  const customer = req.nextUrl.searchParams.get('customer')?.trim() ?? '';
+  const all = !customer;
 
   let data;
   try {
@@ -31,28 +32,32 @@ export async function GET(req: NextRequest) {
   const picked = req.nextUrl.searchParams.get('orders');
   const only = picked === null ? null : new Set(picked.split(',').map((s) => s.trim()).filter(Boolean));
   const rows = data.rows
-    .filter((r) => (quotes ? r.kind === 'quote' : r.kind === 'open' || r.kind === 'inprogress') && r.customer === customer)
+    .filter((r) => (quotes ? r.kind === 'quote' : r.kind === 'open' || r.kind === 'inprogress') && (all || r.customer === customer))
     .filter((r) => quotes || !only || only.has(r.id))
     .sort((a, b) =>
-      quotes
+      (all ? a.customer.localeCompare(b.customer) : 0) ||
+      (quotes
         ? (a.entered ?? '9999').localeCompare(b.entered ?? '9999')
-        : (a.required ?? '9999').localeCompare(b.required ?? '9999'),
+        : (a.required ?? '9999').localeCompare(b.required ?? '9999')),
     );
 
   const wb = new ExcelJS.Workbook();
   wb.creator = 'Plasgain Weekly Follow-Up';
   const ws = wb.addWorksheet(quotes ? 'Quotes' : 'Orders', { views: [{ state: 'frozen', ySplit: 3, showGridLines: true }] });
-  ws.columns = quotes
+  const cols = quotes
     ? [{ width: 16 }, { width: 60 }, { width: 14 }, { width: 14 }, { width: 16 }, { width: 50 }]
     : [{ width: 22 }, { width: 60 }, { width: 22 }, { width: 22 }, { width: 50 }];
+  ws.columns = all ? [{ width: 36 }, ...cols] : cols;
 
-  ws.getCell('A1').value = customer;
+  ws.getCell('A1').value = all ? (quotes ? 'All customers: outstanding quotes' : 'All customers: open and in-progress orders') : customer;
   ws.getCell('A1').font = { bold: true, size: 14 };
 
   const header = ws.getRow(3);
-  header.values = quotes
+  const heads = quotes
     ? ['Quote Number', 'Description', 'Quote Date', 'Expiry Date', 'Value ex GST', 'Notes']
     : ['Purchase Order', 'Description', 'Current Required Date', 'Revised Required Date', 'Notes'];
+  header.values = all ? ['Customer', ...heads] : heads;
+  const o = all ? 1 : 0; // column offset when the Customer column is first
   header.font = { bold: true };
   header.eachCell((c) => {
     c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE6F6ED' } };
@@ -62,8 +67,10 @@ export async function GET(req: NextRequest) {
 
   rows.forEach((r, i) => {
     const row = ws.getRow(4 + i);
+    const lead = all ? [r.customer] : [];
     if (quotes) {
       row.values = [
+        ...lead,
         r.number,
         r.description,
         r.entered ? excelDate(r.entered) : null,
@@ -71,23 +78,23 @@ export async function GET(req: NextRequest) {
         r.valueExGst,
         null,
       ];
-      row.getCell(3).numFmt = 'dd/mm/yyyy';
-      row.getCell(4).numFmt = 'dd/mm/yyyy';
-      row.getCell(5).numFmt = '$#,##0.00';
+      row.getCell(3 + o).numFmt = 'dd/mm/yyyy';
+      row.getCell(4 + o).numFmt = 'dd/mm/yyyy';
+      row.getCell(5 + o).numFmt = '$#,##0.00';
     } else {
-      row.values = [r.po, r.description, r.required ? excelDate(r.required) : 'Not set', null, null];
-      row.getCell(3).numFmt = 'dd/mm/yyyy';
-      row.getCell(4).numFmt = 'dd/mm/yyyy';
+      row.values = [...lead, r.po, r.description, r.required ? excelDate(r.required) : 'Not set', null, null];
+      row.getCell(3 + o).numFmt = 'dd/mm/yyyy';
+      row.getCell(4 + o).numFmt = 'dd/mm/yyyy';
     }
     row.eachCell({ includeEmpty: true }, (c, col) => {
-      c.alignment = { vertical: 'top', wrapText: col === 2 || col === (quotes ? 6 : 5) };
+      c.alignment = { vertical: 'top', wrapText: col === 2 + o || col === (quotes ? 6 : 5) + o || (all && col === 1) };
     });
   });
   if (rows.length === 0)
-    ws.getCell('A4').value = quotes ? 'No outstanding quotes for this customer.' : 'No open or in-progress orders for this customer.';
+    ws.getCell('A4').value = quotes ? 'No outstanding quotes.' : 'No open or in-progress orders.';
 
   const buf = await wb.xlsx.writeBuffer();
-  const safe = customer.replace(/[^\w\s.&-]/g, '').trim().slice(0, 60) || 'customer';
+  const safe = all ? 'All customers' : customer.replace(/[^\w\s.&-]/g, '').trim().slice(0, 60) || 'customer';
   const filename = `${safe} - ${quotes ? 'quotes' : 'orders'} - ${showDate(todayMelbourne()).replace(/\//g, '-')}.xlsx`;
   return new NextResponse(buf as ArrayBuffer, {
     headers: {
